@@ -312,6 +312,15 @@
             font-weight: 600;
         }
 
+        .answer-percent {
+            margin-left: auto;
+            color: #fff;
+            font-weight: 800;
+            font-size: 28px;
+            min-width: 80px;
+            text-align: right;
+        }
+
         .footer {
             position: absolute;
             bottom: 40px;
@@ -457,9 +466,24 @@
                         box.innerHTML = `
                             <div class="answer-letter">${letter}</div>
                             <div class="answer-text">${text}</div>
+                            <div class="answer-percent">0%</div>
                         `;
                         answersGrid.appendChild(box);
                     }
+                    return;
+                }
+
+                if(data.type === 'votes'){
+                    // data.percentages: {A: x, B: y, ...}
+                    const boxes = document.querySelectorAll('.answer-box');
+                    boxes.forEach(box => {
+                        const letterEl = box.querySelector('.answer-letter');
+                        const pctEl = box.querySelector('.answer-percent');
+                        if(!letterEl || !pctEl) return;
+                        const letter = letterEl.textContent.trim().toUpperCase();
+                        const pct = (data.percentages && data.percentages[letter]) !== undefined ? data.percentages[letter] : 0;
+                        pctEl.textContent = `${pct}%`;
+                    });
                     return;
                 }
 

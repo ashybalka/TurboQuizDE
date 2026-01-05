@@ -2,6 +2,8 @@ import asyncio
 import random
 import json
 import re
+import config
+import vote_manager
 
 try:
     import websockets
@@ -42,6 +44,8 @@ WS_HOST = "0.0.0.0"
 WS_PORT = 8765
 clients = set()
 
+# vote state now in vote_manager
+
 async def ws_handler(websocket, path=None):
     clients.add(websocket)
     try:
@@ -65,6 +69,73 @@ async def broadcast(msg: str):
     tasks = [asyncio.create_task(_send_safe(c)) for c in list(clients)]
     if tasks:
         await asyncio.gather(*tasks)
+
+# Broadcast current vote counts and percentages to connected clients
+async def broadcast_votes_once():
+    counts, percentages, total = vote_manager.get_counts_and_percentages()
+    payload = json.dumps({"type": "votes", "counts": counts, "percentages": percentages, "total": total})
+    await broadcast(payload)
+
+async def broadcast_votes_periodic(interval=1.0):
+    while True:
+        try:
+            await broadcast_votes_once()
+        except Exception:
+            pass
+        await asyncio.sleep(interval)
+
+async def irc_listener():
+    # connect to twitch IRC and update answers dict
+    try:
+        reader, writer = await asyncio.open_connection(config.IRC_SERVER, config.IRC_PORT)
+    except Exception as e:
+        print('IRC connect failed:', e)
+        return
+
+    def send_line(s):
+        try:
+            writer.write(f"{s}\r\n".encode())
+        except Exception:
+            pass
+
+    send_line(f"PASS {config.IRC_TOKEN}")
+    send_line(f"NICK {config.IRC_NICK}")
+    send_line(f"JOIN {config.IRC_CHANNEL}")
+
+    print('🎮 IRC listener connected')
+
+    while True:
+        try:
+            raw = await reader.readline()
+            if not raw:
+                await asyncio.sleep(1)
+                continue
+            line = raw.decode('utf-8', errors='ignore').strip()
+
+            if line.startswith('PING'):
+                send_line('PONG :tmi.twitch.tv')
+                continue
+
+            if 'PRIVMSG' not in line:
+                continue
+
+            try:
+                username = line.split('!')[0][1:]
+                message = line.split(':', 2)[2].strip()
+                accepted = vote_manager.accept_vote('twitch', username, message)
+                if accepted:
+                    print(f"✅ {username} → {message}")
+                    print(f"📊 {vote_manager.answers}")
+                    try:
+                        await broadcast_votes_once()
+                    except Exception:
+                        pass
+            except Exception:
+                continue
+
+        except Exception:
+            await asyncio.sleep(1)
+            continue
 
 # -------------------------------
 # Файловые операции (синхронные)
@@ -164,12 +235,16 @@ async def main_loop():
         used_indices.add(idx)
         quiz = all_quizzes[idx]
 
+        # Сбрасываем счётчики голосов перед показом нового вопроса
+        vote_manager.reset_question()
         # Отправляем вопрос как JSON (включая номер и общее количество)
         lines = [l for l in quiz.splitlines() if l.strip() and "✅" not in l]
         question_text = "\n".join(lines)
         meta = {"type": "question", "text": question_text, "current": len(used_indices), "total": len(valid_idxs)}
         try:
+            # send initial zeroed votes so overlay shows 0% immediately
             await broadcast(json.dumps(meta))
+            await broadcast_votes_once()
         except Exception:
             pass
 
@@ -182,7 +257,10 @@ async def main_loop():
 async def main():
     ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
     print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
+    # start background IRC listener and periodic vote broadcaster
     try:
+        asyncio.create_task(irc_listener())
+        asyncio.create_task(broadcast_votes_periodic(1.0))
         await main_loop()
     except asyncio.CancelledError:
         pass
