@@ -200,6 +200,20 @@ async def show_question_with_answer(quiz_text):
     except Exception:
         pass
     print(f"Показан правильный ответ: {correct_text}")
+    # Award points to users who answered correctly
+    try:
+        if correct_letter:
+            voters = vote_manager.get_voters_for_letter(correct_letter)
+            if voters:
+                vote_manager.award_points(voters, points=1)
+                # broadcast updated leaderboard
+                leaderboard = vote_manager.get_top_scores(10)
+                try:
+                    await broadcast(json.dumps({"type": "scores", "leaderboard": leaderboard}))
+                except Exception:
+                    pass
+    except Exception:
+        pass
     # После показа правильного ответа — вещаем таймер до следующего вопроса
     post_wait = QUIZ_INTERVAL - ANSWER_DELAY
     if post_wait > 0:

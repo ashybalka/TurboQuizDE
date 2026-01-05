@@ -1,17 +1,38 @@
 from collections import defaultdict
+from collections import defaultdict
+import sqlite3
+import os
 
 VALID_ANSWERS = {
     "A": "A", "B": "B", "C": "C", "D": "D",
     "1": "A", "2": "B", "3": "C", "4": "D"
 }
 
-answers = defaultdict(int)
-users_answered = set()
+# votes: mapping of 'source:username' -> letter (A/B/C/D)
+votes = {}
+
+# --- simple SQLite score DB ---
+DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
+
+def _get_conn():
+    conn = sqlite3.connect(DB_PATH)
+    return conn
+
+def init_db():
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("""
+    CREATE TABLE IF NOT EXISTS scores (
+        username TEXT PRIMARY KEY,
+        score INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    conn.commit()
+    conn.close()
 
 
 def reset_question():
-    answers.clear()
-    users_answered.clear()
+    votes.clear()
 
 
 def accept_vote(source: str, username: str, message: str):
@@ -21,8 +42,7 @@ def accept_vote(source: str, username: str, message: str):
     if not username:
         return False
     uname = f"{source}:{username}" if source else username
-    # prevent duplicates per question
-    if uname in users_answered:
+    if uname in votes:
         return False
 
     msg = (message or "").strip().upper()
@@ -31,19 +51,65 @@ def accept_vote(source: str, username: str, message: str):
 
     if msg in VALID_ANSWERS:
         letter = VALID_ANSWERS[msg]
-        users_answered.add(uname)
-        answers[letter] += 1
+        votes[uname] = letter
         return True
 
     return False
 
 
 def get_counts_and_percentages():
-    total = sum(answers.values())
-    counts = dict(answers)
+    counts = defaultdict(int)
+    for v in votes.values():
+        counts[v] += 1
+    total = sum(counts.values())
     percentages = {}
     for k in ['A', 'B', 'C', 'D']:
         cnt = counts.get(k, 0)
         pct = round((cnt / total) * 100, 1) if total > 0 else 0.0
         percentages[k] = pct
-    return counts, percentages, total
+    return dict(counts), percentages, total
+
+
+def get_voters_for_letter(letter: str):
+    # return list of (source, username) tuples for voters who chose 'letter'
+    res = []
+    for uname, v in votes.items():
+        if v == letter:
+            if ':' in uname:
+                src, user = uname.split(':', 1)
+            else:
+                src, user = '', uname
+            res.append((src, user))
+    return res
+
+
+def award_points(user_tuples, points=1):
+    """user_tuples: iterable of (source, username)"""
+    if not user_tuples:
+        return
+    init_db()
+    conn = _get_conn()
+    cur = conn.cursor()
+    for _, username in user_tuples:
+        cur.execute("SELECT score FROM scores WHERE username = ?", (username,))
+        row = cur.fetchone()
+        if row:
+            cur.execute("UPDATE scores SET score = score + ? WHERE username = ?", (points, username))
+        else:
+            cur.execute("INSERT INTO scores(username, score) VALUES(?, ?)", (username, points))
+    conn.commit()
+    conn.close()
+
+
+def get_top_scores(limit=10):
+    init_db()
+    conn = _get_conn()
+    cur = conn.cursor()
+    cur.execute("SELECT username, score FROM scores ORDER BY score DESC LIMIT ?", (limit,))
+    rows = cur.fetchall()
+    conn.close()
+    return [{'username': r[0], 'score': r[1]} for r in rows]
+
+
+# initialize DB file on import
+init_db()
