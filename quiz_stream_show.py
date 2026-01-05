@@ -11,14 +11,20 @@ except Exception:
     print("Требуется пакет 'websockets'. Установите: pip install websockets")
     raise
 
+try:
+    import edge_tts
+except Exception:
+    print("Требуется пакет 'edge-tts'. Установите: pip install edge-tts")
+    edge_tts = None
+
 # -------------------------------
 # Настройки
 # -------------------------------
 ALL_QUIZZES_FILE = "Deutsch_Quiz.txt"
 OUTPUT_FILE = "quiz.txt"
 ANSWER_FILE = "answer.txt"    # файл для правильного ответа
-QUIZ_INTERVAL = 30            # время между вопросами
-ANSWER_DELAY = 20             # время до показа правильного ответа
+QUIZ_INTERVAL = 60            # время между вопросами
+ANSWER_DELAY = 50             # время до показа правильного ответа
 TIMER_START = ANSWER_DELAY    # таймер обратного отсчёта
 
 # Установите в None чтобы показывать все квизы,
@@ -148,6 +154,96 @@ def clear_answer():
         f.write("")
 
 # -------------------------------
+# Озвучка через Edge TTS
+# -------------------------------
+async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
+    """Генерирует аудио через Edge TTS и возвращает base64-encoded данные"""
+    if not edge_tts:
+        return None
+    try:
+        communicate = edge_tts.Communicate(text, voice)
+        import io
+        import base64
+        import tempfile
+        import os
+        
+        # Сохраняем во временный файл, затем читаем
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_file:
+            tmp_path = tmp_file.name
+        
+        await communicate.save(tmp_path)
+        
+        # Читаем файл в байты
+        with open(tmp_path, 'rb') as f:
+            audio_data = f.read()
+        
+        # Удаляем временный файл
+        try:
+            os.unlink(tmp_path)
+        except:
+            pass
+        
+        # Кодируем в base64 для отправки через WebSocket
+        audio_base64 = base64.b64encode(audio_data).decode('utf-8')
+        return audio_base64
+    except Exception as e:
+        print(f"Ошибка генерации аудио: {e}")
+        return None
+
+async def speak_question_and_answers(quiz_text: str):
+    """Генерирует аудио для вопроса и вариантов ответов, отправляет в браузер"""
+    if not edge_tts:
+        return
+    
+    lines = [line.strip() for line in quiz_text.splitlines() if line.strip() and "✅" not in line]
+    
+    # Извлекаем вопрос и варианты ответов
+    question = ""
+    options = []
+    
+    for line in lines:
+        if line.startswith("Thema:"):
+            continue
+        # Проверяем, является ли строка вариантом ответа (A), B), C), D))
+        if re.match(r'^[A-D]\)\s*', line, re.IGNORECASE):
+            options.append(line)
+        elif not question and line:
+            question = line
+    
+    # Генерируем и отправляем аудио для вопроса
+    if question:
+        print(f"🔊 Генерирую аудио для вопроса: {question}")
+        audio_base64 = await speak_text(question)
+        if audio_base64:
+            try:
+                await broadcast(json.dumps({
+                    "type": "audio",
+                    "audio": audio_base64,
+                    "text": question,
+                    "isQuestion": True
+                }))
+            except Exception as e:
+                print(f"Ошибка отправки аудио: {e}")
+        # Пауза после вопроса перед вариантами ответов
+        await asyncio.sleep(1.5)
+    
+    # Генерируем и отправляем аудио для вариантов ответов
+    for option in options:
+        print(f"🔊 Генерирую аудио для варианта: {option}")
+        audio_base64 = await speak_text(option)
+        if audio_base64:
+            try:
+                await broadcast(json.dumps({
+                    "type": "audio",
+                    "audio": audio_base64,
+                    "text": option,
+                    "isQuestion": False
+                }))
+            except Exception as e:
+                print(f"Ошибка отправки аудио: {e}")
+        await asyncio.sleep(0.3)  # Пауза между вариантами
+
+# -------------------------------
 # Логика показа вопроса и вещания таймера
 # -------------------------------
 async def show_question_with_answer(quiz_text):
@@ -206,12 +302,13 @@ async def show_question_with_answer(quiz_text):
             voters = vote_manager.get_voters_for_letter(correct_letter)
             if voters:
                 vote_manager.award_points(voters, points=1)
-                # broadcast updated leaderboard
-                leaderboard = vote_manager.get_top_scores(10)
-                try:
-                    await broadcast(json.dumps({"type": "scores", "leaderboard": leaderboard}))
-                except Exception:
-                    pass
+    except Exception:
+        pass
+    
+    # Обновляем лидерборд из базы при каждом ответе
+    try:
+        leaderboard = vote_manager.get_top_scores(10)
+        await broadcast(json.dumps({"type": "scores", "leaderboard": leaderboard}))
     except Exception:
         pass
     # После показа правильного ответа — вещаем таймер до следующего вопроса
@@ -259,8 +356,17 @@ async def main_loop():
             # send initial zeroed votes so overlay shows 0% immediately
             await broadcast(json.dumps(meta))
             await broadcast_votes_once()
+            # Отправляем актуальный лидерборд в начале каждого вопроса
+            leaderboard = vote_manager.get_top_scores(10)
+            await broadcast(json.dumps({"type": "scores", "leaderboard": leaderboard}))
         except Exception:
             pass
+
+        # Озвучиваем вопрос и варианты ответов
+        try:
+            asyncio.create_task(speak_question_and_answers(quiz))
+        except Exception as e:
+            print(f"Ошибка запуска озвучки: {e}")
 
         await show_question_with_answer(quiz)
 

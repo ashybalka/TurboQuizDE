@@ -143,14 +143,14 @@
         .leaderboard-item .name {
             flex: 1;
             padding-left: 8px;
-            color: #fff;
+            color: #000;
             white-space: nowrap;
             overflow: hidden;
             text-overflow: ellipsis;
         }
 
         .leaderboard-item .score {
-            color: #ffd700;
+            color: #fff;
             font-weight: 800;
             margin-left: 8px;
         }
@@ -186,6 +186,8 @@
             left: 50%;
             transform: translate(-50%, -50%);
             width: 880px;
+            max-width: 880px;
+            min-width: 880px;
             z-index: 10;
         }
 
@@ -197,6 +199,8 @@
             padding: 50px;
             margin-bottom: 40px;
             box-shadow: 0 8px 32px rgba(0, 0, 0, 0.3);
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .question-number {
@@ -218,6 +222,8 @@
             display: grid;
             grid-template-columns: 1fr 1fr;
             gap: 30px;
+            width: 100%;
+            box-sizing: border-box;
         }
 
         .answer-box {
@@ -232,6 +238,9 @@
             display: flex;
             align-items: center;
             gap: 20px;
+            width: 100%;
+            box-sizing: border-box;
+            min-width: 0;
         }
 
         .answer-box:hover {
@@ -409,9 +418,76 @@
         }
 
         let ws;
+        // Очередь воспроизведения аудио
+        const audioQueue = [];
+        let isPlaying = false;
+        let currentAudio = null;
+
+        async function playNextAudio(){
+            if(isPlaying || audioQueue.length === 0) return;
+            
+            isPlaying = true;
+            const {audioUrl, isQuestion} = audioQueue.shift();
+            
+            return new Promise((resolve) => {
+                const audio = new Audio(audioUrl);
+                currentAudio = audio;
+                
+                audio.addEventListener('ended', () => {
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    
+                    // Если это был вопрос, добавляем дополнительную паузу
+                    if(isQuestion){
+                        setTimeout(() => {
+                            playNextAudio();
+                        }, 500); // Пауза 0.5 секунды после вопроса
+                    } else {
+                        // Для вариантов ответов - сразу следующий
+                        playNextAudio();
+                    }
+                    resolve();
+                }, { once: true });
+                
+                audio.addEventListener('error', (err) => {
+                    console.warn('Ошибка воспроизведения аудио:', err);
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    playNextAudio(); // Пробуем следующий
+                    resolve();
+                });
+                
+                audio.play().catch(err => {
+                    console.warn('Ошибка запуска аудио:', err);
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    playNextAudio(); // Пробуем следующий
+                    resolve();
+                });
+            });
+        }
+
+        function addToAudioQueue(audioUrl, isQuestion = false){
+            audioQueue.push({audioUrl, isQuestion});
+            if(!isPlaying){
+                playNextAudio();
+            }
+        }
+
         function connect(){
             ws = new WebSocket('ws://localhost:8765');
-            ws.onopen = () => console.log('WS connected');
+            ws.onopen = () => {
+                console.log('WS connected');
+                // Очищаем очередь при новом подключении
+                audioQueue.length = 0;
+                if(currentAudio){
+                    currentAudio.pause();
+                }
+                isPlaying = false;
+            };
             ws.onmessage = (e) => {
                 let data;
                 try { data = JSON.parse(e.data); } catch(err) { return; }
@@ -432,6 +508,14 @@
                 }
 
                 if(data.type === 'question'){
+                    // Очищаем очередь аудио при новом вопросе
+                    audioQueue.length = 0;
+                    if(currentAudio){
+                        currentAudio.pause();
+                        currentAudio = null;
+                    }
+                    isPlaying = false;
+                    
                     const qBox = document.querySelector('.question-box');
                     const qNumber = qBox.querySelector('.question-number');
                     const qText = qBox.querySelector('.question-text');
@@ -547,6 +631,56 @@
                         setTimeout(()=> h.textContent = old, 5000);
                     }
                     console.log('Answer received, correct_letter=', data.correct_letter, 'correct_text=', data.correct_text, 'matched=', matched);
+                    return;
+                }
+
+                if(data.type === 'scores'){
+                    const leaderboardList = document.querySelector('.leaderboard-list');
+                    if(!leaderboardList || !data.leaderboard) return;
+                    
+                    leaderboardList.innerHTML = '';
+                    data.leaderboard.forEach((entry, index) => {
+                        const rank = index + 1;
+                        const item = document.createElement('li');
+                        item.className = 'leaderboard-item';
+                        if(rank === 1) item.classList.add('top1');
+                        else if(rank === 2) item.classList.add('top2');
+                        else if(rank === 3) item.classList.add('top3');
+                        
+                        item.innerHTML = `
+                            <span class="rank">${rank}.</span>
+                            <span class="name">${entry.username}</span>
+                            <span class="score">${entry.score}</span>
+                        `;
+                        leaderboardList.appendChild(item);
+                    });
+                    return;
+                }
+
+                if(data.type === 'audio'){
+                    // Добавляем аудио в очередь воспроизведения
+                    if(data.audio){
+                        try {
+                            // Декодируем base64 в бинарные данные
+                            const audioData = atob(data.audio);
+                            const audioArray = new Uint8Array(audioData.length);
+                            for(let i = 0; i < audioData.length; i++){
+                                audioArray[i] = audioData.charCodeAt(i);
+                            }
+                            
+                            // Создаем Blob и URL для воспроизведения
+                            const blob = new Blob([audioArray], { type: 'audio/mpeg' });
+                            const audioUrl = URL.createObjectURL(blob);
+                            
+                            // Определяем, является ли это вопросом
+                            const isQuestion = data.isQuestion === true;
+                            
+                            // Добавляем в очередь воспроизведения
+                            addToAudioQueue(audioUrl, isQuestion);
+                        } catch(err) {
+                            console.warn('Ошибка обработки аудио:', err);
+                        }
+                    }
                     return;
                 }
             };
