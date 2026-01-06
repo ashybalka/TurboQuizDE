@@ -388,6 +388,8 @@ async def show_question_with_answer(quiz_text):
 # -------------------------------
 # Основной async цикл
 # -------------------------------
+background_tasks = set()
+
 async def main_loop():
     global used_indices
     while True:
@@ -428,7 +430,9 @@ async def main_loop():
 
         # Озвучиваем вопрос и варианты ответов
         try:
-            asyncio.create_task(speak_question_and_answers(quiz))
+            t = asyncio.create_task(speak_question_and_answers(quiz))
+            background_tasks.add(t)
+            t.add_done_callback(background_tasks.discard)
         except Exception as e:
             print(f"Ошибка запуска озвучки: {e}")
 
@@ -443,9 +447,10 @@ async def main():
     print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
     # start background IRC listener and periodic vote broadcaster
     try:
-        asyncio.create_task(irc_listener())
-        asyncio.create_task(youtube_listener())
-        asyncio.create_task(broadcast_votes_periodic(1.0))
+        for coro in [irc_listener(), youtube_listener(), broadcast_votes_periodic(1.0)]:
+            t = asyncio.create_task(coro)
+            background_tasks.add(t)
+            t.add_done_callback(background_tasks.discard)
         await main_loop()
     except asyncio.CancelledError:
         pass
