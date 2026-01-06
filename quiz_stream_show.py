@@ -80,7 +80,9 @@ async def broadcast(msg: str):
                 pass
 
     for c in list(clients):
-        asyncio.create_task(_send_safe(c))
+        t = asyncio.create_task(_send_safe(c))
+        background_tasks.add(t)
+        t.add_done_callback(background_tasks.discard)
 
 # Broadcast current vote counts and percentages to connected clients
 async def broadcast_votes_once():
@@ -97,115 +99,123 @@ async def broadcast_votes_periodic(interval=1.0):
         await asyncio.sleep(interval)
 
 async def irc_listener():
-    # connect to twitch IRC and update answers dict
-    try:
-        reader, writer = await asyncio.open_connection(config.IRC_SERVER, config.IRC_PORT)
-    except Exception as e:
-        print('IRC connect failed:', e)
-        return
-
-    def send_line(s):
-        try:
-            writer.write(f"{s}\r\n".encode())
-        except Exception:
-            pass
-
-    send_line(f"PASS {config.IRC_TOKEN}")
-    send_line(f"NICK {config.IRC_NICK}")
-    send_line(f"JOIN {config.IRC_CHANNEL}")
-
-    print('🎮 IRC listener connected')
-
     while True:
         try:
-            raw = await reader.readline()
-            if not raw:
-                await asyncio.sleep(1)
-                continue
-            line = raw.decode('utf-8', errors='ignore').strip()
-
-            if line.startswith('PING'):
-                send_line('PONG :tmi.twitch.tv')
-                continue
-
-            if 'PRIVMSG' not in line:
-                continue
-
+            # connect to twitch IRC and update answers dict
             try:
-                username = line.split('!')[0][1:]
-                message = line.split(':', 2)[2].strip()
-                accepted = vote_manager.accept_vote('twitch', username, message)
-                if accepted:
-                    print(f"✅ {username} → {message}")
-                    print(f"📊 {vote_manager.answers}")
-                    try:
-                        await broadcast_votes_once()
-                    except Exception:
-                        pass
-            except Exception:
+                reader, writer = await asyncio.open_connection(config.IRC_SERVER, config.IRC_PORT)
+            except Exception as e:
+                print('IRC connect failed:', e)
+                await asyncio.sleep(5)
                 continue
 
+            def send_line(s):
+                try:
+                    writer.write(f"{s}\r\n".encode())
+                except Exception:
+                    pass
+
+            send_line(f"PASS {config.IRC_TOKEN}")
+            send_line(f"NICK {config.IRC_NICK}")
+            send_line(f"JOIN {config.IRC_CHANNEL}")
+
+            print('🎮 IRC listener connected')
+
+            while True:
+                raw = await reader.readline()
+                if not raw:
+                    print("⚠️ IRC соединение разорвано, переподключение...")
+                    break
+                
+                line = raw.decode('utf-8', errors='ignore').strip()
+
+                if line.startswith('PING'):
+                    send_line('PONG :tmi.twitch.tv')
+                    continue
+
+                if 'PRIVMSG' not in line:
+                    continue
+
+                try:
+                    username = line.split('!')[0][1:]
+                    message = line.split(':', 2)[2].strip()
+                    accepted = vote_manager.accept_vote('twitch', username, message)
+                    if accepted:
+                        print(f"✅ {username} → {message}")
+                        # Используем votes вместо answers
+                        print(f"📊 {getattr(vote_manager, 'votes', {})}")
+                        try:
+                            await broadcast_votes_once()
+                        except Exception:
+                            pass
+                except Exception:
+                    continue
         except Exception:
-            await asyncio.sleep(1)
-            continue
+            print("Ошибка в IRC listener, перезапуск...")
+            await asyncio.sleep(5)
 
 async def youtube_listener():
     if not pytchat:
         return
 
-    video_id = getattr(config, 'YOUTUBE_VIDEO_ID', None)
-    
-    # Если ID видео не задан, пробуем найти через ID канала
-    if not video_id:
-        channel_id = getattr(config, 'YOUTUBE_CHANNEL_ID', None)
-        if channel_id:
-            print(f"🔍 Поиск активной трансляции для канала {channel_id}...")
-            try:
-                def get_live_id():
-                    url = f"https://www.youtube.com/channel/{channel_id}/live"
-                    req = urllib.request.Request(
-                        url, 
-                        headers={'User-Agent': 'Mozilla/5.0'}
-                    )
-                    with urllib.request.urlopen(req) as response:
-                        final_url = response.geturl()
-                        if "v=" in final_url:
-                            return final_url.split("v=")[1].split("&")[0]
-                    return None
+    while True:
+        video_id = getattr(config, 'YOUTUBE_VIDEO_ID', None)
+        
+        # Если ID видео не задан, пробуем найти через ID канала
+        if not video_id:
+            channel_id = getattr(config, 'YOUTUBE_CHANNEL_ID', None)
+            if channel_id:
+                # print(f"🔍 Поиск активной трансляции для канала {channel_id}...")
+                try:
+                    def get_live_id():
+                        url = f"https://www.youtube.com/channel/{channel_id}/live"
+                        req = urllib.request.Request(
+                            url, 
+                            headers={'User-Agent': 'Mozilla/5.0'}
+                        )
+                        with urllib.request.urlopen(req) as response:
+                            final_url = response.geturl()
+                            if "v=" in final_url:
+                                return final_url.split("v=")[1].split("&")[0]
+                        return None
 
-                loop = asyncio.get_running_loop()
-                video_id = await loop.run_in_executor(None, get_live_id)
-            except Exception as e:
-                print(f"⚠️ Ошибка поиска трансляции: {e}")
+                    loop = asyncio.get_running_loop()
+                    video_id = await loop.run_in_executor(None, get_live_id)
+                except Exception as e:
+                    pass
 
-    if not video_id:
-        print("⚠️ YOUTUBE_VIDEO_ID/CHANNEL_ID не заданы или трансляция не найдена. YouTube чат отключен.")
-        return
+        if not video_id:
+            # print("⚠️ YOUTUBE_VIDEO_ID/CHANNEL_ID не заданы или трансляция не найдена. Повтор через 30с.")
+            await asyncio.sleep(30)
+            continue
 
-    print(f'🔴 Подключение к YouTube чату: {video_id}')
-    try:
-        loop = asyncio.get_running_loop()
-        chat = await loop.run_in_executor(None, lambda: pytchat.create(video_id=video_id))
-    except Exception as e:
-        print(f"Ошибка подключения к YouTube: {e}")
-        return
-
-    while chat.is_alive():
+        print(f'🔴 Подключение к YouTube чату: {video_id}')
         try:
-            for c in chat.get().sync_items():
-                username = c.author.name
-                message = c.message
-                accepted = vote_manager.accept_vote('youtube', username, message)
-                if accepted:
-                    print(f"✅ [YT] {username} → {message}")
-                    print(f"📊 {vote_manager.answers}")
-                    try:
-                        await broadcast_votes_once()
-                    except Exception:
-                        pass
-            await asyncio.sleep(1)
-        except Exception:
-            await asyncio.sleep(1)
+            loop = asyncio.get_running_loop()
+            chat = await loop.run_in_executor(None, lambda: pytchat.create(video_id=video_id))
+            
+            while chat.is_alive():
+                try:
+                    for c in chat.get().sync_items():
+                        username = c.author.name
+                        message = c.message
+                        accepted = vote_manager.accept_vote('youtube', username, message)
+                        if accepted:
+                            print(f"✅ [YT] {username} → {message}")
+                            print(f"📊 {getattr(vote_manager, 'votes', {})}")
+                            try:
+                                await broadcast_votes_once()
+                            except Exception:
+                                pass
+                    await asyncio.sleep(1)
+                except Exception:
+                    await asyncio.sleep(1)
+            
+            print("YouTube чат отключился, переподключение...")
+        except Exception as e:
+            print(f"Ошибка подключения к YouTube: {e}")
+        
+        await asyncio.sleep(10)
 
 # -------------------------------
 # Файловые операции (синхронные)
