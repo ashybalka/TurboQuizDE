@@ -2,6 +2,7 @@ import asyncio
 import random
 import json
 import re
+import urllib.request
 import config
 import vote_manager
 
@@ -16,6 +17,12 @@ try:
 except Exception:
     print("Требуется пакет 'edge-tts'. Установите: pip install edge-tts")
     edge_tts = None
+
+try:
+    import pytchat
+except Exception:
+    print("Требуется пакет 'pytchat'. Установите: pip install pytchat")
+    pytchat = None
 
 # -------------------------------
 # Настройки
@@ -142,6 +149,63 @@ async def irc_listener():
         except Exception:
             await asyncio.sleep(1)
             continue
+
+async def youtube_listener():
+    if not pytchat:
+        return
+
+    video_id = getattr(config, 'YOUTUBE_VIDEO_ID', None)
+    
+    # Если ID видео не задан, пробуем найти через ID канала
+    if not video_id:
+        channel_id = getattr(config, 'YOUTUBE_CHANNEL_ID', None)
+        if channel_id:
+            print(f"🔍 Поиск активной трансляции для канала {channel_id}...")
+            try:
+                def get_live_id():
+                    url = f"https://www.youtube.com/channel/{channel_id}/live"
+                    req = urllib.request.Request(
+                        url, 
+                        headers={'User-Agent': 'Mozilla/5.0'}
+                    )
+                    with urllib.request.urlopen(req) as response:
+                        final_url = response.geturl()
+                        if "v=" in final_url:
+                            return final_url.split("v=")[1].split("&")[0]
+                    return None
+
+                loop = asyncio.get_running_loop()
+                video_id = await loop.run_in_executor(None, get_live_id)
+            except Exception as e:
+                print(f"⚠️ Ошибка поиска трансляции: {e}")
+
+    if not video_id:
+        print("⚠️ YOUTUBE_VIDEO_ID/CHANNEL_ID не заданы или трансляция не найдена. YouTube чат отключен.")
+        return
+
+    print(f'🔴 Подключение к YouTube чату: {video_id}')
+    try:
+        chat = pytchat.create(video_id=video_id)
+    except Exception as e:
+        print(f"Ошибка подключения к YouTube: {e}")
+        return
+
+    while chat.is_alive():
+        try:
+            for c in chat.get().sync_items():
+                username = c.author.name
+                message = c.message
+                accepted = vote_manager.accept_vote('youtube', username, message)
+                if accepted:
+                    print(f"✅ [YT] {username} → {message}")
+                    print(f"📊 {vote_manager.answers}")
+                    try:
+                        await broadcast_votes_once()
+                    except Exception:
+                        pass
+            await asyncio.sleep(1)
+        except Exception:
+            await asyncio.sleep(1)
 
 # -------------------------------
 # Файловые операции (синхронные)
@@ -380,6 +444,7 @@ async def main():
     # start background IRC listener and periodic vote broadcaster
     try:
         asyncio.create_task(irc_listener())
+        asyncio.create_task(youtube_listener())
         asyncio.create_task(broadcast_votes_periodic(1.0))
         await main_loop()
     except asyncio.CancelledError:
