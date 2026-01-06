@@ -79,9 +79,8 @@ async def broadcast(msg: str):
             except Exception:
                 pass
 
-    tasks = [asyncio.create_task(_send_safe(c)) for c in list(clients)]
-    if tasks:
-        await asyncio.gather(*tasks)
+    for c in list(clients):
+        asyncio.create_task(_send_safe(c))
 
 # Broadcast current vote counts and percentages to connected clients
 async def broadcast_votes_once():
@@ -185,7 +184,8 @@ async def youtube_listener():
 
     print(f'🔴 Подключение к YouTube чату: {video_id}')
     try:
-        chat = pytchat.create(video_id=video_id)
+        loop = asyncio.get_running_loop()
+        chat = await loop.run_in_executor(None, lambda: pytchat.create(video_id=video_id))
     except Exception as e:
         print(f"Ошибка подключения к YouTube: {e}")
         return
@@ -226,26 +226,12 @@ async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
         return None
     try:
         communicate = edge_tts.Communicate(text, voice)
-        import io
         import base64
-        import tempfile
-        import os
         
-        # Сохраняем во временный файл, затем читаем
-        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp3') as tmp_file:
-            tmp_path = tmp_file.name
-        
-        await communicate.save(tmp_path)
-        
-        # Читаем файл в байты
-        with open(tmp_path, 'rb') as f:
-            audio_data = f.read()
-        
-        # Удаляем временный файл
-        try:
-            os.unlink(tmp_path)
-        except:
-            pass
+        audio_data = b""
+        async for chunk in communicate.stream():
+            if chunk["type"] == "audio":
+                audio_data += chunk["data"]
         
         # Кодируем в base64 для отправки через WebSocket
         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
