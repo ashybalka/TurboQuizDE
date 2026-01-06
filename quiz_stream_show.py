@@ -151,10 +151,22 @@ def setup_local_audio():
     except Exception as e:
         print(f"Ошибка настройки аудио: {e}")
 
+async def play_local_audio(audio_data: bytes):
+    """Проигрывает аудио локально и ждет завершения"""
+    if pygame and pygame.mixer.get_init():
+        try:
+            pygame.mixer.music.load(io.BytesIO(audio_data))
+            pygame.mixer.music.play()
+            # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
+            while pygame.mixer.music.get_busy():
+                await asyncio.sleep(0.1)
+        except Exception as e:
+            print(f"Ошибка воспроизведения: {e}")
+
 async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
-    """Генерирует аудио через Edge TTS и возвращает base64-encoded данные"""
+    """Генерирует аудио через Edge TTS и возвращает (base64, bytes)"""
     if not edge_tts:
-        return None
+        return None, None
     try:
         communicate = edge_tts.Communicate(text, voice)
         import base64
@@ -164,23 +176,12 @@ async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
             if chunk["type"] == "audio":
                 audio_data += chunk["data"]
         
-        # Локальное воспроизведение (для VB-Cable/VTuber)
-        if pygame and pygame.mixer.get_init():
-            try:
-                pygame.mixer.music.load(io.BytesIO(audio_data))
-                pygame.mixer.music.play()
-                # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
-                while pygame.mixer.music.get_busy():
-                    await asyncio.sleep(0.1)
-            except Exception as e:
-                print(f"Ошибка воспроизведения: {e}")
-
         # Кодируем в base64 для отправки через WebSocket
         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
-        return audio_base64
+        return audio_base64, audio_data
     except Exception as e:
         print(f"Ошибка генерации аудио: {e}")
-        return None
+        return None, None
 
 async def speak_question_and_answers(quiz_text: str):
     """Генерирует аудио для вопроса и вариантов ответов, отправляет в браузер"""
@@ -205,7 +206,7 @@ async def speak_question_and_answers(quiz_text: str):
     # Генерируем и отправляем аудио для вопроса
     if question:
         print(f"🔊 Генерирую аудио для вопроса: {question}")
-        audio_base64 = await speak_text(question)
+        audio_base64, audio_bytes = await speak_text(question)
         if audio_base64:
             try:
                 await broadcast(json.dumps({
@@ -216,13 +217,18 @@ async def speak_question_and_answers(quiz_text: str):
                 }))
             except Exception as e:
                 print(f"Ошибка отправки аудио: {e}")
+            
+            # Проигрываем локально ПОСЛЕ отправки в вебсокет
+            if audio_bytes:
+                await play_local_audio(audio_bytes)
+
         # Пауза после вопроса перед вариантами ответов
         await asyncio.sleep(1.5)
     
     # Генерируем и отправляем аудио для вариантов ответов
     for option in options:
         print(f"🔊 Генерирую аудио для варианта: {option}")
-        audio_base64 = await speak_text(option)
+        audio_base64, audio_bytes = await speak_text(option)
         if audio_base64:
             try:
                 await broadcast(json.dumps({
@@ -233,6 +239,10 @@ async def speak_question_and_answers(quiz_text: str):
                 }))
             except Exception as e:
                 print(f"Ошибка отправки аудио: {e}")
+            
+            if audio_bytes:
+                await play_local_audio(audio_bytes)
+
         await asyncio.sleep(0.3)  # Пауза между вариантами
 
 # -------------------------------
@@ -365,6 +375,33 @@ async def main_loop():
             print(f"Ошибка запуска озвучки: {e}")
 
         await show_question_with_answer(quiz)
+
+        # Ненужный дополнительный sleep удалён — показ правильного ответа
+        # и отправка таймеров до следующего вопроса уже выполняются в
+        # show_question_with_answer(), поэтому здесь спать не нужно.
+
+async def main():
+    setup_local_audio()
+    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
+    print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
+    # start background IRC listener and periodic vote broadcaster
+    try:
+        for coro in [broadcast_votes_periodic(1.0)]:
+            t = asyncio.create_task(coro)
+            background_tasks.add(t)
+            t.add_done_callback(background_tasks.discard)
+        await main_loop()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        ws_server.close()
+        await ws_server.wait_closed()
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        print("Скрипт остановлен пользователем.")
 
         # Ненужный дополнительный sleep удалён — показ правильного ответа
         # и отправка таймеров до следующего вопроса уже выполняются в
