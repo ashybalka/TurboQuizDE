@@ -109,15 +109,16 @@ async def irc_listener():
                 await asyncio.sleep(5)
                 continue
 
-            def send_line(s):
+            async def send_line(s):
                 try:
                     writer.write(f"{s}\r\n".encode())
+                    await writer.drain()
                 except Exception:
                     pass
 
-            send_line(f"PASS {config.IRC_TOKEN}")
-            send_line(f"NICK {config.IRC_NICK}")
-            send_line(f"JOIN {config.IRC_CHANNEL}")
+            await send_line(f"PASS {config.IRC_TOKEN}")
+            await send_line(f"NICK {config.IRC_NICK}")
+            await send_line(f"JOIN {config.IRC_CHANNEL}")
 
             print('🎮 IRC listener connected')
 
@@ -191,8 +192,7 @@ async def youtube_listener():
 
         print(f'🔴 Подключение к YouTube чату: {video_id}')
         try:
-            loop = asyncio.get_running_loop()
-            chat = await loop.run_in_executor(None, lambda: pytchat.create(video_id=video_id))
+            chat = pytchat.create(video_id=video_id)
             
             while chat.is_alive():
                 try:
