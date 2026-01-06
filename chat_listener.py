@@ -1,0 +1,135 @@
+import asyncio
+import json
+import socket
+import urllib.request
+import websockets
+import config
+
+# Пытаемся импортировать pytchat
+try:
+    import pytchat
+except ImportError:
+    pytchat = None
+    print("⚠️ Pytchat не установлен. YouTube чат будет отключен.")
+
+WS_URL = "ws://127.0.0.1:8765"
+msg_queue = asyncio.Queue()
+
+async def twitch_listener():
+    print("🎮 Запуск слушателя Twitch...")
+    while True:
+        try:
+            reader, writer = await asyncio.open_connection(config.IRC_SERVER, config.IRC_PORT)
+            
+            async def send_line(s):
+                writer.write(f"{s}\r\n".encode())
+                await writer.drain()
+
+            await send_line(f"PASS {config.IRC_TOKEN}")
+            await send_line(f"NICK {config.IRC_NICK}")
+            await send_line(f"JOIN {config.IRC_CHANNEL}")
+            print("🎮 Twitch подключен")
+
+            while True:
+                raw = await reader.readline()
+                if not raw:
+                    print("⚠️ Twitch соединение разорвано")
+                    break
+                
+                line = raw.decode('utf-8', errors='ignore').strip()
+
+                if line.startswith('PING'):
+                    await send_line('PONG :tmi.twitch.tv')
+                    continue
+
+                if 'PRIVMSG' not in line:
+                    continue
+
+                try:
+                    # Парсим сообщение
+                    parts = line.split(':', 2)
+                    if len(parts) < 3: continue
+                    
+                    username = line.split('!')[0][1:]
+                    message = parts[2].strip()
+                    
+                    # Отправляем в очередь для пересылки
+                    await msg_queue.put({
+                        "type": "remote_vote",
+                        "source": "twitch",
+                        "username": username,
+                        "message": message
+                    })
+                except Exception:
+                    continue
+        except Exception as e:
+            print(f"⚠️ Ошибка Twitch: {e}. Реконнект через 5с...")
+            await asyncio.sleep(5)
+
+async def youtube_listener():
+    if not pytchat:
+        return
+    
+    print("🔴 Запуск слушателя YouTube...")
+    while True:
+        video_id = getattr(config, 'YOUTUBE_VIDEO_ID', None)
+        if not video_id:
+            channel_id = getattr(config, 'YOUTUBE_CHANNEL_ID', None)
+            if channel_id:
+                try:
+                    url = f"https://www.youtube.com/channel/{channel_id}/live"
+                    req = urllib.request.Request(url, headers={'User-Agent': 'Mozilla/5.0'})
+                    with urllib.request.urlopen(req) as response:
+                        final_url = response.geturl()
+                        if "v=" in final_url:
+                            video_id = final_url.split("v=")[1].split("&")[0]
+                except Exception:
+                    pass
+        
+        if not video_id:
+            await asyncio.sleep(30)
+            continue
+
+        print(f"🔴 Подключение к YouTube ID: {video_id}")
+        try:
+            chat = pytchat.create(video_id=video_id)
+            while chat.is_alive():
+                for c in chat.get().sync_items():
+                    await msg_queue.put({
+                        "type": "remote_vote",
+                        "source": "youtube",
+                        "username": c.author.name,
+                        "message": c.message
+                    })
+                await asyncio.sleep(1)
+            print("🔴 YouTube чат отключился")
+        except Exception as e:
+            print(f"⚠️ Ошибка YouTube: {e}")
+        
+        await asyncio.sleep(10)
+
+async def ws_sender():
+    """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
+    while True:
+        try:
+            print(f"🔌 Подключение к основному скрипту {WS_URL}...")
+            async with websockets.connect(WS_URL) as ws:
+                print("✅ Связь с основным скриптом установлена")
+                while True:
+                    data = await msg_queue.get()
+                    await ws.send(json.dumps(data))
+                    msg_queue.task_done()
+        except Exception:
+            await asyncio.sleep(3)
+
+async def main():
+    tasks = [twitch_listener(), ws_sender()]
+    if pytchat:
+        tasks.append(youtube_listener())
+    await asyncio.gather(*tasks)
+
+if __name__ == "__main__":
+    try:
+        asyncio.run(main())
+    except KeyboardInterrupt:
+        pass

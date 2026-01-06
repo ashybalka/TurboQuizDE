@@ -22,12 +22,6 @@ except Exception:
     edge_tts = None
 
 try:
-    import pytchat
-except Exception:
-    print("Требуется пакет 'pytchat'. Установите: pip install pytchat")
-    pytchat = None
-
-try:
     import pygame
     import pygame._sdl2.audio as sdl2_audio
 except ImportError:
@@ -71,7 +65,20 @@ clients = set()
 async def ws_handler(websocket, path=None):
     clients.add(websocket)
     try:
-        await websocket.wait_closed()
+        async for message in websocket:
+            try:
+                data = json.loads(message)
+                # Обработка голосов от внешнего скрипта chat_listener.py
+                if data.get("type") == "remote_vote":
+                    source = data.get("source", "unknown")
+                    username = data.get("username")
+                    msg = data.get("message")
+                    accepted = vote_manager.accept_vote(source, username, msg)
+                    if accepted:
+                        print(f"✅ [{source}] {username} → {msg}")
+                        await broadcast_votes_once()
+            except Exception:
+                pass
     finally:
         clients.remove(websocket)
 
@@ -106,125 +113,6 @@ async def broadcast_votes_periodic(interval=1.0):
         except Exception:
             pass
         await asyncio.sleep(interval)
-
-async def irc_listener():
-    while True:
-        try:
-            # connect to twitch IRC and update answers dict
-            try:
-                reader, writer = await asyncio.open_connection(config.IRC_SERVER, config.IRC_PORT)
-            except Exception as e:
-                print('IRC connect failed:', e)
-                await asyncio.sleep(5)
-                continue
-
-            async def send_line(s):
-                try:
-                    writer.write(f"{s}\r\n".encode())
-                    await writer.drain()
-                except Exception:
-                    pass
-
-            await send_line(f"PASS {config.IRC_TOKEN}")
-            await send_line(f"NICK {config.IRC_NICK}")
-            await send_line(f"JOIN {config.IRC_CHANNEL}")
-
-            print('🎮 IRC listener connected')
-
-            while True:
-                raw = await reader.readline()
-                if not raw:
-                    print("⚠️ IRC соединение разорвано, переподключение...")
-                    break
-                
-                line = raw.decode('utf-8', errors='ignore').strip()
-
-                if line.startswith('PING'):
-                    send_line('PONG :tmi.twitch.tv')
-                    continue
-
-                if 'PRIVMSG' not in line:
-                    continue
-
-                try:
-                    username = line.split('!')[0][1:]
-                    message = line.split(':', 2)[2].strip()
-                    accepted = vote_manager.accept_vote('twitch', username, message)
-                    if accepted:
-                        print(f"✅ {username} → {message}")
-                        # Используем votes вместо answers
-                        print(f"📊 {getattr(vote_manager, 'votes', {})}")
-                        try:
-                            await broadcast_votes_once()
-                        except Exception:
-                            pass
-                except Exception:
-                    continue
-        except Exception:
-            print("Ошибка в IRC listener, перезапуск...")
-            await asyncio.sleep(5)
-
-async def youtube_listener():
-    if not pytchat:
-        return
-
-    while True:
-        video_id = getattr(config, 'YOUTUBE_VIDEO_ID', None)
-        
-        # Если ID видео не задан, пробуем найти через ID канала
-        if not video_id:
-            channel_id = getattr(config, 'YOUTUBE_CHANNEL_ID', None)
-            if channel_id:
-                # print(f"🔍 Поиск активной трансляции для канала {channel_id}...")
-                try:
-                    def get_live_id():
-                        url = f"https://www.youtube.com/channel/{channel_id}/live"
-                        req = urllib.request.Request(
-                            url, 
-                            headers={'User-Agent': 'Mozilla/5.0'}
-                        )
-                        with urllib.request.urlopen(req) as response:
-                            final_url = response.geturl()
-                            if "v=" in final_url:
-                                return final_url.split("v=")[1].split("&")[0]
-                        return None
-
-                    loop = asyncio.get_running_loop()
-                    video_id = await loop.run_in_executor(None, get_live_id)
-                except Exception as e:
-                    pass
-
-        if not video_id:
-            # print("⚠️ YOUTUBE_VIDEO_ID/CHANNEL_ID не заданы или трансляция не найдена. Повтор через 30с.")
-            await asyncio.sleep(30)
-            continue
-
-        print(f'🔴 Подключение к YouTube чату: {video_id}')
-        try:
-            chat = pytchat.create(video_id=video_id)
-            
-            while chat.is_alive():
-                try:
-                    for c in chat.get().sync_items():
-                        username = c.author.name
-                        message = c.message
-                        accepted = vote_manager.accept_vote('youtube', username, message)
-                        if accepted:
-                            print(f"✅ [YT] {username} → {message}")
-                            print(f"📊 {getattr(vote_manager, 'votes', {})}")
-                            try:
-                                await broadcast_votes_once()
-                            except Exception:
-                                pass
-                    await asyncio.sleep(1)
-                except Exception:
-                    await asyncio.sleep(1)
-            
-            print("YouTube чат отключился, переподключение...")
-        except Exception as e:
-            print(f"Ошибка подключения к YouTube: {e}")
-        
-        await asyncio.sleep(10)
 
 # -------------------------------
 # Файловые операции (синхронные)
@@ -488,7 +376,7 @@ async def main():
     print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
     # start background IRC listener and periodic vote broadcaster
     try:
-        for coro in [irc_listener(), youtube_listener(), broadcast_votes_periodic(1.0)]:
+        for coro in [broadcast_votes_periodic(1.0)]:
             t = asyncio.create_task(coro)
             background_tasks.add(t)
             t.add_done_callback(background_tasks.discard)
