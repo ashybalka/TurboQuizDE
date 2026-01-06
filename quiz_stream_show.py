@@ -402,30 +402,3 @@ if __name__ == "__main__":
         asyncio.run(main())
     except KeyboardInterrupt:
         print("Скрипт остановлен пользователем.")
-
-        # Ненужный дополнительный sleep удалён — показ правильного ответа
-        # и отправка таймеров до следующего вопроса уже выполняются в
-        # show_question_with_answer(), поэтому здесь спать не нужно.
-
-async def main():
-    setup_local_audio()
-    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
-    print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
-    # start background IRC listener and periodic vote broadcaster
-    try:
-        for coro in [broadcast_votes_periodic(1.0)]:
-            t = asyncio.create_task(coro)
-            background_tasks.add(t)
-            t.add_done_callback(background_tasks.discard)
-        await main_loop()
-    except asyncio.CancelledError:
-        pass
-    finally:
-        ws_server.close()
-        await ws_server.wait_closed()
-
-if __name__ == "__main__":
-    try:
-        asyncio.run(main())
-    except KeyboardInterrupt:
-        print("Скрипт остановлен пользователем.")
