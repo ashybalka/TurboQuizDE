@@ -5,6 +5,9 @@ import re
 import urllib.request
 import config
 import vote_manager
+import io
+import os
+os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
 
 try:
     import websockets
@@ -23,6 +26,12 @@ try:
 except Exception:
     print("Требуется пакет 'pytchat'. Установите: pip install pytchat")
     pytchat = None
+
+try:
+    import pygame
+    import pygame._sdl2.audio as sdl2_audio
+except ImportError:
+    pygame = None
 
 # -------------------------------
 # Настройки
@@ -230,6 +239,30 @@ def clear_answer():
 # -------------------------------
 # Озвучка через Edge TTS
 # -------------------------------
+def setup_local_audio():
+    if not pygame:
+        return
+
+    device_name = getattr(config, 'TTS_DEVICE_NAME', None)
+    if not device_name:
+        return
+
+    try:
+        pygame.init()
+        pygame.mixer.init()
+        
+        devices = sdl2_audio.get_audio_device_names(False)
+        target = next((d for d in devices if device_name.lower() in d.lower()), None)
+        
+        if target:
+            print(f"🔊 Вывод звука на устройство: {target}")
+            pygame.mixer.quit()
+            pygame.mixer.init(devicename=target)
+        else:
+            print(f"⚠️ Устройство '{device_name}' не найдено. Доступные: {devices}")
+    except Exception as e:
+        print(f"Ошибка настройки аудио: {e}")
+
 async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
     """Генерирует аудио через Edge TTS и возвращает base64-encoded данные"""
     if not edge_tts:
@@ -243,6 +276,17 @@ async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
             if chunk["type"] == "audio":
                 audio_data += chunk["data"]
         
+        # Локальное воспроизведение (для VB-Cable/VTuber)
+        if pygame and pygame.mixer.get_init():
+            try:
+                pygame.mixer.music.load(io.BytesIO(audio_data))
+                pygame.mixer.music.play()
+                # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
+                while pygame.mixer.music.get_busy():
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                print(f"Ошибка воспроизведения: {e}")
+
         # Кодируем в base64 для отправки через WebSocket
         audio_base64 = base64.b64encode(audio_data).decode('utf-8')
         return audio_base64
@@ -439,6 +483,7 @@ async def main_loop():
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
 async def main():
+    setup_local_audio()
     ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
     print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
     # start background IRC listener and periodic vote broadcaster
