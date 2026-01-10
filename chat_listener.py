@@ -2,6 +2,7 @@ import asyncio
 import json
 import socket
 import urllib.request
+import os
 import websockets
 import config
 
@@ -12,7 +13,19 @@ except ImportError:
     pytchat = None
     print("⚠️ Pytchat не установлен. YouTube чат будет отключен.")
 
-WS_URL = "ws://127.0.0.1:8765"
+try:
+    from TikTokLive import TikTokLiveClient
+    try:
+        from TikTokLive.events import CommentEvent
+    except ImportError:
+        from TikTokLive.types.events import CommentEvent
+except ImportError as e:
+    TikTokLiveClient = None
+    print(f"⚠️ Ошибка импорта TikTokLive: {e}")
+    print("⚠️ TikTok чат будет отключен. (pip install TikTokLive)")
+
+PORT = os.environ.get("PORT", 8765)
+WS_URL = f"ws://127.0.0.1:{PORT}"
 msg_queue = asyncio.Queue()
 
 async def twitch_listener():
@@ -108,6 +121,35 @@ async def youtube_listener():
         
         await asyncio.sleep(10)
 
+async def tiktok_listener():
+    if not TikTokLiveClient:
+        return
+    
+    tiktok_user = getattr(config, 'TIKTOK_USERNAME', None)
+    if not tiktok_user:
+        return
+
+    print(f"🎵 Запуск слушателя TikTok для @{tiktok_user}...")
+    
+    while True:
+        try:
+            client = TikTokLiveClient(unique_id=tiktok_user)
+
+            @client.on(CommentEvent)
+            async def on_comment(event: CommentEvent):
+                await msg_queue.put({
+                    "type": "remote_vote",
+                    "source": "tiktok",
+                    "username": event.user.nickname or event.user.unique_id,
+                    "message": event.comment
+                })
+            
+            await client.start()
+        except Exception:
+            pass
+        
+        await asyncio.sleep(20)
+
 async def ws_sender():
     """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
     while True:
@@ -134,9 +176,32 @@ async def ws_sender():
             await asyncio.sleep(3)
 
 async def main():
-    tasks = [twitch_listener(), ws_sender()]
+    print("\n--- Выбор сервисов для запуска ---")
+
+    # Автоматическое определение на основе наличия настроек в config.py (env vars)
+    use_twitch = bool(config.IRC_TOKEN and config.IRC_NICK)
+    print(f"🎮 Twitch: {'ВКЛ' if use_twitch else 'ВЫКЛ (нет токена)'}")
+
+    use_youtube = False
     if pytchat:
+        use_youtube = bool(config.YOUTUBE_VIDEO_ID or config.YOUTUBE_CHANNEL_ID)
+        print(f"🔴 YouTube: {'ВКЛ' if use_youtube else 'ВЫКЛ (нет ID)'}")
+
+    use_tiktok = False
+    tt_user = getattr(config, 'TIKTOK_USERNAME', None)
+    if TikTokLiveClient and tt_user:
+        use_tiktok = True
+        print(f"🎵 TikTok: ВКЛ (@{tt_user})")
+
+    print("-" * 30)
+
+    tasks = [ws_sender()]
+    if use_twitch:
+        tasks.append(twitch_listener())
+    if use_youtube:
         tasks.append(youtube_listener())
+    if use_tiktok:
+        tasks.append(tiktok_listener())
     await asyncio.gather(*tasks)
 
 if __name__ == "__main__":

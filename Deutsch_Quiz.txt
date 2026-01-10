@@ -2120,6 +2120,7 @@ D) Gegen Russland und Frankreich
 
 Thema: Geschichte
 Wann begann der Erste Weltkrieg?
+Wann begann der Erste Weltkonflikt?
 A) 1914
 B) 1915
 C) 1916
@@ -2130,6 +2131,7 @@ D) 1917
 
 Thema: Geschichte
 Wann endete der Erste Weltkrieg?
+Wann endete der Erste Weltkonflikt?
 A) 1917
 B) 1918
 C) 1919
@@ -2140,16 +2142,19 @@ D) 1920
 
 Thema: Geschichte
 Was war der Auslöser des Ersten Weltkriegs?
+Was war der Auslöser des Ersten Weltkonflikts?
 A) Die Invasion Polens
 B) Das Attentat von Sarajevo
 C) Der Angriff auf Pearl Harbor
 D) Die Ermordung des Zaren
+D) Der Tod des Zaren
 ✅ B) Das Attentat von Sarajevo
 
 ⏳ Antworte im Chat!
 
 Thema: Geschichte
 Welcher Vertrag beendete den Ersten Weltkrieg für Deutschland?
+Welcher Vertrag beendete den Ersten Weltkonflikt für Deutschland?
 A) Der Vertrag von Wien
 B) Der Vertrag von Versailles
 C) Der Vertrag von Paris
@@ -2194,6 +2199,7 @@ A) Eine Wirtschaftskrise mit extremer Geldentwertung
 B) Eine politische Krise
 C) Eine Naturkatastrophe
 D) Ein Krieg
+D) Ein Konflikt
 ✅ A) Eine Wirtschaftskrise mit extremer Geldentwertung
 
 ⏳ Antworte im Chat!
@@ -2210,6 +2216,7 @@ D) 1933
 
 Thema: Geschichte
 Wann kam Hitler an die Macht?
+Wann kam Adolf H. an die Macht?
 A) 1930
 B) 1932
 C) 1933
@@ -2220,6 +2227,7 @@ D) 1934
 
 Thema: Geschichte
 Wann begann der Zweite Weltkrieg?
+Wann begann der Zweite Weltkonflikt?
 A) 1938
 B) 1939
 C) 1940
@@ -2230,6 +2238,7 @@ D) 1941
 
 Thema: Geschichte
 Mit welchem Ereignis begann der Zweite Weltkrieg?
+Mit welchem Ereignis begann der Zweite Weltkonflikt?
 A) Mit dem Angriff auf Polen
 B) Mit dem Angriff auf Frankreich
 C) Mit dem Angriff auf die Sowjetunion
@@ -2240,6 +2249,7 @@ D) Mit dem Angriff auf England
 
 Thema: Geschichte
 Wann endete der Zweite Weltkrieg in Europa?
+Wann endete der Zweite Weltkonflikt in Europa?
 A) 8. Mai 1945
 B) 9. Mai 1945
 C) 8. August 1945
@@ -2250,6 +2260,7 @@ D) 2. September 1945
 
 Thema: Geschichte
 Wann kapitulierte Deutschland im Zweiten Weltkrieg?
+Wann kapitulierte Deutschland im Zweiten Weltkonflikt?
 A) 30. April 1945
 B) 8. Mai 1945
 C) 9. Mai 1945
@@ -2262,9 +2273,12 @@ Thema: Geschichte
 Was war die Operation Walküre?
 A) Ein Kriegsplan
 B) Ein Attentat auf Hitler
+A) Ein Militärplan
+B) Ein Attentat auf Adolf H.
 C) Eine Schlacht
 D) Ein Geheimbund
 ✅ B) Ein Attentat auf Hitler
+✅ B) Ein Attentat auf Adolf H.
 
 ⏳ Antworte im Chat!
 
@@ -2774,6 +2788,7 @@ A) Die Wiedervereinigung
 B) Der Mauerfall
 C) Die Gründung der EU
 D) Das Ende des Kalten Krieges
+D) Das Ende des Kalten Konflikts
 ✅ B) Der Mauerfall
 
 ⏳ Antworte im Chat!
@@ -2980,6 +2995,7 @@ D) November 1918
 
 Thema: Geschichte
 Was war der Hitlerputsch?
+Was war der H.-Putsch?
 A) Ein erfolgreicher Putschversuch 1923
 B) Ein gescheiterter Putschversuch 1923
 C) Eine Demonstration
@@ -2990,6 +3006,7 @@ D) Ein Attentat
 
 Thema: Geschichte
 Wo fand der Hitlerputsch statt?
+Wo fand der H.-Putsch statt?
 A) In Berlin
 B) In München
 C) In Nürnberg
@@ -3000,6 +3017,7 @@ D) In Hamburg
 
 Thema: Geschichte
 Was schrieb Hitler im Gefängnis?
+Was schrieb Adolf H. im Gefängnis?
 A) Eine Biographie
 B) "Mein Kampf"
 C) Ein Tagebuch
@@ -3042,9 +3060,11 @@ Thema: Geschichte
 Was war das Ermächtigungsgesetz?
 A) Ein Gesetz zur Demokratisierung
 B) Ein Gesetz, das Hitler diktatorische Vollmachten gab
+B) Ein Gesetz, das Adolf H. diktatorische Vollmachten gab
 C) Ein Wirtschaftsgesetz
 D) Ein Sozialgesetz
 ✅ B) Ein Gesetz, das Hitler diktatorische Vollmachten gab
+✅ B) Ein Gesetz, das Adolf H. diktatorische Vollmachten gab
 
 ⏳ Antworte im Chat!
 
@@ -3092,14 +3112,17 @@ Thema: Geschichte
 Was war der Holocaust?
 A) Ein Krieg
 B) Der systematische Völkermord an den europäischen Juden
+B) Das systematische Massenverbrechen an den europäischen Juden
 C) Eine Schlacht
 D) Eine Krankheit
 ✅ B) Der systematische Völkermord an den europäischen Juden
+✅ B) Das systematische Massenverbrechen an den europäischen Juden
 
 ⏳ Antworte im Chat!
 
 Thema: Geschichte
 Wie viele Juden wurden im Holocaust ermordet?
+Wie viele Juden wurden im Holocaust getötet?
 A) Etwa 2 Millionen
 B) Etwa 4 Millionen
 C) Etwa 6 Millionen
@@ -3163,8 +3186,11 @@ Was war der D-Day?
 A) Der Tag der deutschen Kapitulation
 B) Die Landung der Alliierten in der Normandie
 C) Der Beginn des Zweiten Weltkriegs
+B) Die Landung der Alliierten
+C) Der Beginn des Zweiten Weltkonflikts
 D) Der Fall Berlins
 ✅ B) Die Landung der Alliierten in der Normandie
+✅ B) Die Landung der Alliierten
 
 ⏳ Antworte im Chat!
 
@@ -3202,9 +3228,11 @@ Thema: Geschichte
 Was war die Schlacht von Stalingrad?
 A) Eine kleine Schlacht
 B) Eine der blutigsten Schlachten des Zweiten Weltkriegs
+B) Eine der verlustreichsten Schlachten des Zweiten Weltkonflikts
 C) Eine Seeschlacht
 D) Eine Luftschlacht
 ✅ B) Eine der blutigsten Schlachten des Zweiten Weltkriegs
+✅ B) Eine der verlustreichsten Schlachten des Zweiten Weltkonflikts
 
 ⏳ Antworte im Chat!
 
@@ -3271,6 +3299,7 @@ D) 1947
 Thema: Geschichte
 Wer wurde in Nürnberg vor Gericht gestellt?
 A) Nur Hitler
+A) Nur Adolf H.
 B) Nazi-Kriegsverbrecher
 C) Alle deutschen Soldaten
 D) Nur Generäle
@@ -3373,6 +3402,7 @@ Was löste die Währungsreform aus?
 A) Die Berliner Blockade
 B) Die Gründung der BRD
 C) Den Kalten Krieg
+C) Den Kalten Konflikt
 D) Die Teilung Deutschlands
 ✅ A) Die Berliner Blockade
 
@@ -3513,6 +3543,7 @@ Was bedeutete der Zwei-plus-Vier-Vertrag für Deutschland?
 A) Die volle Souveränität
 B) Die Teilung
 C) Einen neuen Krieg
+C) Einen neuen Konflikt
 D) Nichts Besonderes
 ✅ A) Die volle Souveränität
 
@@ -3603,6 +3634,7 @@ Was war die 68er-Bewegung?
 A) Eine Protestbewegung der Studenten
 B) Eine politische Partei
 C) Ein Krieg
+C) Ein Konflikt
 D) Eine Revolution
 ✅ A) Eine Protestbewegung der Studenten
 
@@ -3612,9 +3644,11 @@ Thema: Geschichte
 Wogegen protestierten die 68er hauptsächlich?
 A) Gegen die Regierung
 B) Gegen den Vietnamkrieg und autoritäre Strukturen
+B) Gegen den Vietnamkonflikt und autoritäre Strukturen
 C) Gegen die Wiedervereinigung
 D) Gegen die EU
 ✅ B) Gegen den Vietnamkrieg und autoritäre Strukturen
+✅ B) Gegen den Vietnamkonflikt und autoritäre Strukturen
 
 ⏳ Antworte im Chat!
 
@@ -3632,9 +3666,11 @@ Thema: Geschichte
 Was war die RAF?
 A) Eine Luftwaffe
 B) Eine terroristische Gruppe (Rote Armee Fraktion)
+B) Eine extremistische Gruppe (Rote Armee Fraktion)
 C) Eine politische Partei
 D) Eine Gewerkschaft
 ✅ B) Eine terroristische Gruppe (Rote Armee Fraktion)
+✅ B) Eine extremistische Gruppe (Rote Armee Fraktion)
 
 ⏳ Antworte im Chat!
 
@@ -3652,9 +3688,11 @@ Thema: Geschichte
 Was geschah im "Deutschen Herbst"?
 A) Die Wiedervereinigung
 B) RAF-Terrorismus und Entführungen
+B) RAF-Extremismus und Entführungen
 C) Studentenproteste
 D) Der Mauerfall
 ✅ B) RAF-Terrorismus und Entführungen
+✅ B) RAF-Extremismus und Entführungen
 
 ⏳ Antworte im Chat!
 
@@ -3663,6 +3701,7 @@ Wer war Hanns Martin Schleyer?
 A) Ein Politiker
 B) Ein Unternehmer, der von der RAF entführt wurde
 C) Ein Terrorist
+C) Ein Extremist
 D) Ein Schriftsteller
 ✅ B) Ein Unternehmer, der von der RAF entführt wurde
 
@@ -3753,6 +3792,7 @@ Was war der Ölpreisschock?
 A) Eine Naturkatastrophe
 B) Eine Wirtschaftskrise durch steigende Ölpreise
 C) Ein Krieg
+C) Ein Konflikt
 D) Eine politische Krise
 ✅ B) Eine Wirtschaftskrise durch steigende Ölpreise
 
@@ -3814,6 +3854,7 @@ A) Die Beziehungen zwischen BRD und DDR
 B) Die Wiedervereinigung
 C) Die Teilung Deutschlands
 D) Den Kalten Krieg
+D) Den Kalten Konflikt
 ✅ A) Die Beziehungen zwischen BRD und DDR
 
 ⏳ Antworte im Chat!
@@ -4420,6 +4461,7 @@ D) Martina Gedeck
 
 Thema: Kultur und Kunst
 Welcher Film handelt von den letzten Tagen Hitlers?
+Welcher Film handelt von den letzten Tagen von Adolf H.?
 A) Das Boot
 B) Der Untergang
 C) Die Blechtrommel
@@ -5632,9 +5674,11 @@ Thema: Kultur und Kunst
 Was war das Thema vieler Werke von Otto Dix?
 A) Landschaften
 B) Der Erste Weltkrieg
+B) Der Erste Weltkonflikt
 C) Mythologie
 D) Religion
 ✅ B) Der Erste Weltkrieg
+✅ B) Der Erste Weltkonflikt
 
 ⏳ Antworte im Chat!
 
@@ -5743,6 +5787,7 @@ Zu welchem Anlass wurde das erste Oktoberfest gefeiert?
 A) Zur Gründung Münchens
 B) Zur Hochzeit von Kronprinz Ludwig
 C) Zum Ende des Krieges
+C) Zum Ende des Konflikts
 D) Zum Geburtstag des Königs
 ✅ B) Zur Hochzeit von Kronprinz Ludwig
 

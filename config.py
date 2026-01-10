@@ -1,9 +1,12 @@
+import os
+
 # Central configuration for chat integrations
 IRC_SERVER = "irc.chat.twitch.tv"
 IRC_PORT = 6667
-IRC_NICK = "turboquizde"
-IRC_TOKEN = "oauth:8ht8ey4d3c12mam74p9a4fdsry0ndy"
-IRC_CHANNEL = "#turboquizde"
-YOUTUBE_VIDEO_ID = "xHTc9mpN-A4"  # Вставьте сюда ID вашей трансляции (часть URL после v=)
-YOUTUBE_CHANNEL_ID = "UC5QqMBpg62wzcEnvrKXuP0w"  # ID канала (начинается с UC...), если VIDEO_ID пустой
-TTS_DEVICE_NAME = "CABLE Input"  # Часть имени устройства (например, "CABLE Input" для VB-Audio)
+IRC_NICK = os.environ.get("IRC_NICK", "turboquizde")
+IRC_TOKEN = os.environ.get("IRC_TOKEN", "")  # Токен берем из переменных окружения
+IRC_CHANNEL = os.environ.get("IRC_CHANNEL", "#turboquizde")
+YOUTUBE_VIDEO_ID = os.environ.get("YOUTUBE_VIDEO_ID", "")
+YOUTUBE_CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "")
+TTS_DEVICE_NAME = os.environ.get("TTS_DEVICE_NAME", "CABLE Input")
+TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME", "")

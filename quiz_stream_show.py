@@ -57,7 +57,7 @@ used_indices = set()
 # WebSocket clients
 # -------------------------------
 WS_HOST = "0.0.0.0"
-WS_PORT = 8765
+WS_PORT = int(os.environ.get("PORT", 8765))
 clients = set()
 
 # vote state now in vote_manager
@@ -166,6 +166,7 @@ async def play_local_audio(audio_data: bytes):
 async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
     """Генерирует аудио через Edge TTS и возвращает (base64, bytes)"""
     if not edge_tts:
+        print("⚠️ Озвучка пропущена: библиотека 'edge-tts' не установлена или не загружена.")
         return None, None
     try:
         communicate = edge_tts.Communicate(text, voice)
@@ -215,6 +216,7 @@ async def speak_question_and_answers(quiz_text: str):
                     "text": question,
                     "isQuestion": True
                 }))
+                print("📡 Аудио данные отправлены в браузер")
             except Exception as e:
                 print(f"Ошибка отправки аудио: {e}")
             
