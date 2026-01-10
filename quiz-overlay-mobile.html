@@ -360,8 +360,9 @@
         }
 
         function connect(){
-            const host = window.location.hostname || 'localhost';
-            ws = new WebSocket(`ws://${host}:8765`);
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host;
+            ws = new WebSocket(wsUrl);
             ws.onopen = () => {
                 console.log('WS connected');
                 audioQueue.length = 0;

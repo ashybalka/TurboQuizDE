@@ -7,6 +7,7 @@ import config
 import vote_manager
 import io
 import os
+import http
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
 
 try:
@@ -382,9 +383,30 @@ async def main_loop():
         # и отправка таймеров до следующего вопроса уже выполняются в
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
+async def process_request(path, request_headers):
+    """Отдает существующие HTML файлы по HTTP запросу"""
+    if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
+        if path == "/":
+            try:
+                with open("quiz-overlay.html", "rb") as f:
+                    content = f.read()
+                return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+            except FileNotFoundError:
+                return http.HTTPStatus.NOT_FOUND, [], b"quiz-overlay.html not found"
+        elif path == "/mobile":
+            try:
+                with open("quiz-overlay-mobile.html", "rb") as f:
+                    content = f.read()
+                return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+            except FileNotFoundError:
+                return http.HTTPStatus.NOT_FOUND, [], b"Mobile overlay not found"
+        elif path == "/health":
+             return http.HTTPStatus.OK, [], b"OK"
+    return None
+
 async def main():
     setup_local_audio()
-    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT)
+    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT, process_request=process_request)
     print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
     # start background IRC listener and periodic vote broadcaster
     try:

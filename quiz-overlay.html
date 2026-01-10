@@ -485,7 +485,9 @@
         }
 
         function connect(){
-            ws = new WebSocket('ws://localhost:8765');
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host;
+            ws = new WebSocket(wsUrl);
             ws.onopen = () => {
                 console.log('WS connected');
                 // Очищаем очередь при новом подключении
