@@ -178,6 +178,10 @@ def setup_local_audio():
         print(f"Ошибка настройки аудио: {e}")
 
 def start_background_music():
+    # Проверяем, не в серверной ли среде
+    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PORT'):
+        return
+    
     try:
         if not pygame or not pygame.mixer.get_init():
             return
@@ -191,8 +195,8 @@ def start_background_music():
     try:
         print(f"🎵 Запуск фоновой музыки...")
         pygame.mixer.music.load(music_url)
-        pygame.mixer.music.set_volume(0.3)  # 30% громкости
-        pygame.mixer.music.play(-1)  # Бесконечный повтор
+        pygame.mixer.music.set_volume(0.3)
+        pygame.mixer.music.play(-1)
     except Exception as e:
         print(f"⚠️ Ошибка фоновой музыки: {e}")
 
