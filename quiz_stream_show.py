@@ -171,15 +171,31 @@ def setup_local_audio():
     except Exception as e:
         print(f"Ошибка настройки аудио: {e}")
 
+def start_background_music():
+    if not pygame or not pygame.mixer.get_init():
+        return
+
+    music_url = os.environ.get("BACKGROUND_MUSIC_URL")
+    if not music_url:
+        return
+
+    try:
+        print(f"🎵 Запуск фоновой музыки...")
+        pygame.mixer.music.load(music_url)
+        pygame.mixer.music.set_volume(0.3)  # 30% громкости
+        pygame.mixer.music.play(-1)  # Бесконечный повтор
+    except Exception as e:
+        print(f"⚠️ Ошибка фоновой музыки: {e}")
+
 async def play_local_audio(audio_data: bytes):
     """Проигрывает аудио локально и ждет завершения"""
     try:
         if pygame and pygame.mixer.get_init():
             try:
-                pygame.mixer.music.load(io.BytesIO(audio_data))
-                pygame.mixer.music.play()
-                # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
-                while pygame.mixer.music.get_busy():
+                # Используем Sound для TTS, чтобы не прерывать фоновую музыку
+                sound = pygame.mixer.Sound(io.BytesIO(audio_data))
+                channel = sound.play()
+                while channel and channel.get_busy():
                     await asyncio.sleep(0.1)
             except Exception as e:
                 print(f"Ошибка воспроизведения: {e}")
@@ -407,6 +423,7 @@ async def main_loop():
 
 async def main():
     setup_local_audio()
+    start_background_music()
     
     # Настраиваем aiohttp приложение
     app = web.Application()
