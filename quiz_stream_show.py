@@ -172,7 +172,10 @@ def setup_local_audio():
         print(f"Ошибка настройки аудио: {e}")
 
 def start_background_music():
-    if not pygame or not pygame.mixer.get_init():
+    try:
+        if not pygame or not pygame.mixer.get_init():
+            return
+    except (ImportError, AttributeError, NotImplementedError):
         return
 
     music_url = os.environ.get("BACKGROUND_MUSIC_URL")
