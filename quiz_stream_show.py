@@ -12,10 +12,15 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
 
 try:
     import websockets
-    from websockets.http import Response
-except Exception:
+except ImportError:
     print("Требуется пакет 'websockets'. Установите: pip install websockets")
     raise
+
+try:
+    from websockets.http import Response
+    HAS_RESPONSE = True
+except ImportError:
+    HAS_RESPONSE = False
 
 try:
     import edge_tts
@@ -384,28 +389,50 @@ async def main_loop():
         # и отправка таймеров до следующего вопроса уже выполняются в
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
-async def process_request(connection, request):
-    """Отдает существующие HTML файлы по HTTP запросу"""
-    path = request.path
-    request_headers = request.headers
-    if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
-        if path == "/":
-            try:
-                with open("quiz-overlay.html", "rb") as f:
-                    content = f.read()
-                return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
-            except FileNotFoundError:
-                return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"quiz-overlay.html not found")
-        elif path == "/mobile":
-            try:
-                with open("quiz-overlay-mobile.html", "rb") as f:
-                    content = f.read()
-                return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
-            except FileNotFoundError:
-                return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"Mobile overlay not found")
-        elif path == "/health":
-             return Response(http.HTTPStatus.OK, "OK", [], b"OK")
-    return None
+if HAS_RESPONSE:
+    async def process_request(connection, request):
+        """Отдает существующие HTML файлы по HTTP запросу (New API)"""
+        path = request.path
+        request_headers = request.headers
+        if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
+            if path == "/":
+                try:
+                    with open("quiz-overlay.html", "rb") as f:
+                        content = f.read()
+                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
+                except FileNotFoundError:
+                    return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"quiz-overlay.html not found")
+            elif path == "/mobile":
+                try:
+                    with open("quiz-overlay-mobile.html", "rb") as f:
+                        content = f.read()
+                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
+                except FileNotFoundError:
+                    return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"Mobile overlay not found")
+            elif path == "/health":
+                 return Response(http.HTTPStatus.OK, "OK", [], b"OK")
+        return None
+else:
+    async def process_request(path, request_headers):
+        """Отдает существующие HTML файлы по HTTP запросу (Legacy API)"""
+        if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
+            if path == "/":
+                try:
+                    with open("quiz-overlay.html", "rb") as f:
+                        content = f.read()
+                    return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+                except FileNotFoundError:
+                    return http.HTTPStatus.NOT_FOUND, [], b"quiz-overlay.html not found"
+            elif path == "/mobile":
+                try:
+                    with open("quiz-overlay-mobile.html", "rb") as f:
+                        content = f.read()
+                    return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+                except FileNotFoundError:
+                    return http.HTTPStatus.NOT_FOUND, [], b"Mobile overlay not found"
+            elif path == "/health":
+                 return http.HTTPStatus.OK, [], b"OK"
+        return None
 
 async def main():
     setup_local_audio()
