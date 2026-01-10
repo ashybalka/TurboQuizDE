@@ -17,10 +17,10 @@ except ImportError:
     raise
 
 try:
-    from websockets.http import Response
-    HAS_RESPONSE = True
-except ImportError:
-    HAS_RESPONSE = False
+    import websockets.http
+    Response = getattr(websockets.http, "Response", None)
+except (ImportError, AttributeError):
+    Response = None
 
 try:
     import edge_tts
@@ -389,50 +389,60 @@ async def main_loop():
         # и отправка таймеров до следующего вопроса уже выполняются в
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
-if HAS_RESPONSE:
-    async def process_request(connection, request):
-        """Отдает существующие HTML файлы по HTTP запросу (New API)"""
-        path = request.path
-        request_headers = request.headers
-        if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
-            if path == "/":
-                try:
-                    with open("quiz-overlay.html", "rb") as f:
-                        content = f.read()
-                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
-                except FileNotFoundError:
-                    return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"quiz-overlay.html not found")
-            elif path == "/mobile":
-                try:
-                    with open("quiz-overlay-mobile.html", "rb") as f:
-                        content = f.read()
-                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
-                except FileNotFoundError:
-                    return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"Mobile overlay not found")
-            elif path == "/health":
-                 return Response(http.HTTPStatus.OK, "OK", [], b"OK")
+async def process_request(*args, **kwargs):
+    """Универсальный обработчик HTTP запросов (поддерживает старый и новый API websockets)"""
+    path = None
+    headers = None
+    is_legacy = False
+
+    # Определение версии API по аргументам
+    if len(args) == 2:
+        arg1, arg2 = args
+        if isinstance(arg1, str):
+            # Legacy API: (path, headers)
+            path = arg1
+            headers = arg2
+            is_legacy = True
+        elif hasattr(arg2, 'path') and hasattr(arg2, 'headers'):
+            # New API: (connection, request)
+            path = arg2.path
+            headers = arg2.headers
+
+    if not path or not headers:
         return None
-else:
-    async def process_request(path, request_headers):
-        """Отдает существующие HTML файлы по HTTP запросу (Legacy API)"""
-        if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
-            if path == "/":
-                try:
-                    with open("quiz-overlay.html", "rb") as f:
-                        content = f.read()
-                    return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
-                except FileNotFoundError:
-                    return http.HTTPStatus.NOT_FOUND, [], b"quiz-overlay.html not found"
-            elif path == "/mobile":
-                try:
-                    with open("quiz-overlay-mobile.html", "rb") as f:
-                        content = f.read()
-                    return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
-                except FileNotFoundError:
-                    return http.HTTPStatus.NOT_FOUND, [], b"Mobile overlay not found"
-            elif path == "/health":
-                 return http.HTTPStatus.OK, [], b"OK"
-        return None
+
+    # Проверка на WebSocket запрос
+    if "Upgrade" not in headers or "websocket" not in headers.get("Upgrade", "").lower():
+        response_body = None
+        content_type = "text/html; charset=utf-8"
+
+        if path == "/":
+            try:
+                with open("quiz-overlay.html", "rb") as f:
+                    response_body = f.read()
+            except FileNotFoundError:
+                response_body = b"quiz-overlay.html not found"
+        elif path == "/mobile":
+            try:
+                with open("quiz-overlay-mobile.html", "rb") as f:
+                    response_body = f.read()
+            except FileNotFoundError:
+                response_body = b"Mobile overlay not found"
+        elif path == "/health":
+             response_body = b"OK"
+             content_type = "text/plain"
+
+        if response_body:
+            if is_legacy:
+                return http.HTTPStatus.OK, [('Content-Type', content_type)], response_body
+            else:
+                # Для нового API нужен объект Response
+                if Response:
+                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
+                else:
+                    # Если Response не импортировался, пробуем вернуть кортеж (может упасть, но это крайний случай)
+                    return http.HTTPStatus.OK, [('Content-Type', content_type)], response_body
+    return None
 
 async def main():
     setup_local_audio()
