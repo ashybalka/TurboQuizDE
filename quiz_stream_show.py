@@ -173,15 +173,18 @@ def setup_local_audio():
 
 async def play_local_audio(audio_data: bytes):
     """Проигрывает аудио локально и ждет завершения"""
-    if pygame and pygame.mixer.get_init():
-        try:
-            pygame.mixer.music.load(io.BytesIO(audio_data))
-            pygame.mixer.music.play()
-            # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
-            while pygame.mixer.music.get_busy():
-                await asyncio.sleep(0.1)
-        except Exception as e:
-            print(f"Ошибка воспроизведения: {e}")
+    try:
+        if pygame and pygame.mixer.get_init():
+            try:
+                pygame.mixer.music.load(io.BytesIO(audio_data))
+                pygame.mixer.music.play()
+                # Ждем окончания, чтобы губы аватара двигались синхронно и фразы не накладывались
+                while pygame.mixer.music.get_busy():
+                    await asyncio.sleep(0.1)
+            except Exception as e:
+                print(f"Ошибка воспроизведения: {e}")
+    except (ImportError, AttributeError, NotImplementedError):
+        pass
 
 async def speak_text(text: str, voice: str = "de-DE-KatjaNeural"):
     """Генерирует аудио через Edge TTS и возвращает (base64, bytes)"""
