@@ -436,12 +436,19 @@ async def process_request(*args, **kwargs):
             if is_legacy:
                 return http.HTTPStatus.OK, [('Content-Type', content_type)], response_body
             else:
-                # Для нового API нужен объект Response
-                if Response:
-                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
+                # Для нового API ВСЕГДА нужен объект Response
+                if not Response:
+                    # Если Response не импортировался, пытаемся импортировать снова
+                    try:
+                        from websockets.http import Response as WsResponse
+                        return WsResponse(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
+                    except ImportError:
+                        # В крайнем случае возвращаем None и позволяем websockets обработать как обычный WS
+                        return None
                 else:
-                    # Если Response не импортировался, пробуем вернуть кортеж (может упасть, но это крайний случай)
-                    return http.HTTPStatus.OK, [('Content-Type', content_type)], response_body
+                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
+    
+    # Для WebSocket запросов возвращаем None (позволяем websockets обработать их)
     return None
 
 async def main():
