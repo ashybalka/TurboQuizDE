@@ -1,2 +1,2 @@
 [phases.setup]
-aptPkgs = ["libglib2.0-0"]
+aptPkgs = ["libglib2.0-0", "libsdl2-2.0-0", "libsdl2-mixer-2.0-0"]

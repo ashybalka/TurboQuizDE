@@ -12,6 +12,7 @@ os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
 
 try:
     import websockets
+    from websockets.http import Response
 except Exception:
     print("Требуется пакет 'websockets'. Установите: pip install websockets")
     raise
@@ -392,18 +393,18 @@ async def process_request(connection, request):
             try:
                 with open("quiz-overlay.html", "rb") as f:
                     content = f.read()
-                return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+                return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
             except FileNotFoundError:
-                return http.HTTPStatus.NOT_FOUND, [], b"quiz-overlay.html not found"
+                return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"quiz-overlay.html not found")
         elif path == "/mobile":
             try:
                 with open("quiz-overlay-mobile.html", "rb") as f:
                     content = f.read()
-                return http.HTTPStatus.OK, [('Content-Type', 'text/html; charset=utf-8')], content
+                return Response(http.HTTPStatus.OK, "OK", [('Content-Type', 'text/html; charset=utf-8')], content)
             except FileNotFoundError:
-                return http.HTTPStatus.NOT_FOUND, [], b"Mobile overlay not found"
+                return Response(http.HTTPStatus.NOT_FOUND, "Not Found", [], b"Mobile overlay not found")
         elif path == "/health":
-             return http.HTTPStatus.OK, [], b"OK"
+             return Response(http.HTTPStatus.OK, "OK", [], b"OK")
     return None
 
 async def main():
