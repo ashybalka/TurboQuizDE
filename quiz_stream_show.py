@@ -7,20 +7,8 @@ import config
 import vote_manager
 import io
 import os
-import http
+from aiohttp import web, WSMsgType
 os.environ['PYGAME_HIDE_SUPPORT_PROMPT'] = "1"
-
-try:
-    import websockets
-except ImportError:
-    print("Требуется пакет 'websockets'. Установите: pip install websockets")
-    raise
-
-try:
-    import websockets.http
-    Response = getattr(websockets.http, "Response", None)
-except (ImportError, AttributeError):
-    Response = None
 
 try:
     import edge_tts
@@ -69,25 +57,50 @@ clients = set()
 
 # vote state now in vote_manager
 
-async def ws_handler(websocket, path=None):
-    clients.add(websocket)
-    try:
-        async for message in websocket:
-            try:
-                data = json.loads(message)
-                # Обработка голосов от внешнего скрипта chat_listener.py
-                if data.get("type") == "remote_vote":
-                    source = data.get("source", "unknown")
-                    username = data.get("username")
-                    msg = data.get("message")
-                    accepted = vote_manager.accept_vote(source, username, msg)
-                    if accepted:
-                        print(f"✅ [{source}] {username} → {msg}")
-                        await broadcast_votes_once()
-            except Exception:
-                pass
-    finally:
-        clients.remove(websocket)
+async def handle_all(request):
+    # 1. Если это WebSocket запрос — подключаем клиента
+    if request.headers.get("Upgrade", "").lower() == "websocket":
+        ws = web.WebSocketResponse()
+        await ws.prepare(request)
+        
+        clients.add(ws)
+        try:
+            async for msg in ws:
+                if msg.type == WSMsgType.TEXT:
+                    try:
+                        data = json.loads(msg.data)
+                        if data.get("type") == "remote_vote":
+                            source = data.get("source", "unknown")
+                            username = data.get("username")
+                            msg_text = data.get("message")
+                            accepted = vote_manager.accept_vote(source, username, msg_text)
+                            if accepted:
+                                print(f"✅ [{source}] {username} → {msg_text}")
+                                await broadcast_votes_once()
+                    except Exception:
+                        pass
+        finally:
+            clients.remove(ws)
+        return ws
+
+    # 2. Если это обычный HTTP запрос — отдаем файлы
+    path = request.path
+    if path == "/":
+        try:
+            with open("quiz-overlay.html", "rb") as f:
+                return web.Response(body=f.read(), content_type="text/html")
+        except FileNotFoundError:
+            return web.Response(text="quiz-overlay.html not found", status=404)
+    elif path == "/mobile":
+        try:
+            with open("quiz-overlay-mobile.html", "rb") as f:
+                return web.Response(body=f.read(), content_type="text/html")
+        except FileNotFoundError:
+            return web.Response(text="Mobile overlay not found", status=404)
+    elif path == "/health":
+        return web.Response(text="OK")
+    
+    return web.Response(text="Not Found", status=404)
 
 async def broadcast(msg: str):
     if not clients:
@@ -95,7 +108,7 @@ async def broadcast(msg: str):
 
     async def _send_safe(c):
         try:
-            await c.send(msg)
+            await c.send_str(msg)
         except Exception:
             try:
                 clients.discard(c)
@@ -389,72 +402,23 @@ async def main_loop():
         # и отправка таймеров до следующего вопроса уже выполняются в
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
-async def process_request(*args, **kwargs):
-    """Универсальный обработчик HTTP запросов (поддерживает старый и новый API websockets)"""
-    path = None
-    headers = None
-    is_legacy = False
-
-    # Определение версии API по аргументам
-    if len(args) == 2:
-        arg1, arg2 = args
-        if isinstance(arg1, str):
-            # Legacy API: (path, headers)
-            path = arg1
-            headers = arg2
-            is_legacy = True
-        elif hasattr(arg2, 'path') and hasattr(arg2, 'headers'):
-            # New API: (connection, request)
-            path = arg2.path
-            headers = arg2.headers
-
-    if not path or not headers:
-        return None
-
-    # Проверка на WebSocket запрос
-    if "Upgrade" not in headers or "websocket" not in headers.get("Upgrade", "").lower():
-        response_body = None
-        content_type = "text/html; charset=utf-8"
-
-        if path == "/":
-            try:
-                with open("quiz-overlay.html", "rb") as f:
-                    response_body = f.read()
-            except FileNotFoundError:
-                response_body = b"quiz-overlay.html not found"
-        elif path == "/mobile":
-            try:
-                with open("quiz-overlay-mobile.html", "rb") as f:
-                    response_body = f.read()
-            except FileNotFoundError:
-                response_body = b"Mobile overlay not found"
-        elif path == "/health":
-             response_body = b"OK"
-             content_type = "text/plain"
-
-        if response_body:
-            if is_legacy:
-                return http.HTTPStatus.OK, [('Content-Type', content_type)], response_body
-            else:
-                # Для нового API ВСЕГДА нужен объект Response
-                if not Response:
-                    # Если Response не импортировался, пытаемся импортировать снова
-                    try:
-                        from websockets.http import Response as WsResponse
-                        return WsResponse(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
-                    except ImportError:
-                        # В крайнем случае возвращаем None и позволяем websockets обработать как обычный WS
-                        return None
-                else:
-                    return Response(http.HTTPStatus.OK, "OK", [('Content-Type', content_type)], response_body)
-    
-    # Для WebSocket запросов возвращаем None (позволяем websockets обработать их)
-    return None
-
 async def main():
     setup_local_audio()
-    ws_server = await websockets.serve(ws_handler, WS_HOST, WS_PORT, process_request=process_request)
-    print(f"WebSocket server running on ws://{WS_HOST}:{WS_PORT}")
+    
+    # Настраиваем aiohttp приложение
+    app = web.Application()
+    # Один обработчик на все маршруты (он сам разберется, WS это или HTTP)
+    app.router.add_get('/', handle_all)
+    app.router.add_get('/mobile', handle_all)
+    app.router.add_get('/health', handle_all)
+    
+    runner = web.AppRunner(app)
+    await runner.setup()
+    # Запускаем на ОДНОМ порту (WS_PORT), который выдал Railway
+    site = web.TCPSite(runner, WS_HOST, WS_PORT)
+    await site.start()
+    print(f"Server running on http://{WS_HOST}:{WS_PORT}")
+
     # start background IRC listener and periodic vote broadcaster
     try:
         for coro in [broadcast_votes_periodic(1.0)]:
@@ -465,8 +429,7 @@ async def main():
     except asyncio.CancelledError:
         pass
     finally:
-        ws_server.close()
-        await ws_server.wait_closed()
+        await runner.cleanup()
 
 if __name__ == "__main__":
     try:
