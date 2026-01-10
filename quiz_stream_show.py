@@ -383,8 +383,10 @@ async def main_loop():
         # и отправка таймеров до следующего вопроса уже выполняются в
         # show_question_with_answer(), поэтому здесь спать не нужно.
 
-async def process_request(path, request_headers):
+async def process_request(connection, request):
     """Отдает существующие HTML файлы по HTTP запросу"""
+    path = request.path
+    request_headers = request.headers
     if "Upgrade" not in request_headers or "websocket" not in request_headers.get("Upgrade", "").lower():
         if path == "/":
             try:
