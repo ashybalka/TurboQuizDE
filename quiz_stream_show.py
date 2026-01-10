@@ -370,6 +370,9 @@ async def show_question_with_answer(quiz_text):
             pass
         await asyncio.sleep(1)
 
+    # Закрываем голосование после истечения времени
+    vote_manager.set_voting_open(False)
+
     # Показ правильного ответа в отдельном файле
     # Подготовим текст и запишем в файл
     answer_text = f"✅ Richtige Antwort: {correct_text}"
@@ -433,6 +436,7 @@ async def main_loop():
 
         # Сбрасываем счётчики голосов перед показом нового вопроса
         vote_manager.reset_question()
+        vote_manager.set_voting_open(True)
         # Отправляем вопрос как JSON (включая номер и общее количество)
         lines = [l for l in quiz.splitlines() if l.strip() and "✅" not in l]
         question_text = "\n".join(lines)

@@ -11,6 +11,13 @@ VALID_ANSWERS = {
 # votes: mapping of 'source:username' -> letter (A/B/C/D)
 votes = {}
 
+# Флаг: открыто ли голосование
+_voting_open = False
+
+def set_voting_open(is_open: bool):
+    global _voting_open
+    _voting_open = is_open
+
 # --- simple SQLite score DB ---
 DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
 
@@ -39,6 +46,9 @@ def accept_vote(source: str, username: str, message: str):
     """Normalize and accept a vote from any chat source.
     Returns True if the vote was accepted (not duplicate and valid), False otherwise.
     """
+    if not _voting_open:
+        return False
+
     if not username:
         return False
     uname = f"{source}:{username}" if source else username

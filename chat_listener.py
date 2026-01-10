@@ -17,10 +17,16 @@ try:
     from TikTokLive import TikTokLiveClient
     try:
         from TikTokLive.events import CommentEvent
+        from TikTokLive.client.errors import WebcastBlocked200Error
     except ImportError:
         from TikTokLive.types.events import CommentEvent
+        try:
+            from TikTokLive.types.errors import WebcastBlocked200Error
+        except ImportError:
+            class WebcastBlocked200Error(Exception): pass
 except ImportError as e:
     TikTokLiveClient = None
+    class WebcastBlocked200Error(Exception): pass
     print(f"⚠️ Ошибка импорта TikTokLive: {e}")
     print("⚠️ TikTok чат будет отключен. (pip install TikTokLive)")
 
@@ -145,8 +151,12 @@ async def tiktok_listener():
                 })
             
             await client.start()
-        except Exception:
-            pass
+        except WebcastBlocked200Error:
+            print(f"⚠️ TikTok: Доступ заблокирован (DEVICE_BLOCKED). Пауза 5 минут...")
+            await asyncio.sleep(300)
+            continue
+        except Exception as e:
+            print(f"⚠️ TikTok ошибка: {e}")
         
         await asyncio.sleep(20)
 
