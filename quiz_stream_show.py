@@ -149,7 +149,7 @@ def clear_answer():
 # -------------------------------
 def setup_local_audio():
     # Пропускаем настройку локального аудио в серверных средах
-    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PORT'):
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
         print("🌐 Серверная среда обнаружена - локальное аудио отключено")
         print("📡 Аудио будет воспроизводиться только в браузерах через WebSocket")
         return
@@ -157,13 +157,19 @@ def setup_local_audio():
     if not pygame:
         return
 
-    device_name = getattr(config, 'TTS_DEVICE_NAME', None)
-    if not device_name:
-        return
-
     try:
         pygame.init()
         pygame.mixer.init()
+    except Exception as e:
+        print(f"⚠️ Ошибка инициализации аудио: {e}")
+        return
+
+    device_name = getattr(config, 'TTS_DEVICE_NAME', None)
+    if not device_name:
+        print("🔊 Используется аудиоустройство по умолчанию")
+        return
+
+    try:
         
         devices = sdl2_audio.get_audio_device_names(False)
         target = next((d for d in devices if device_name.lower() in d.lower()), None)
@@ -175,11 +181,11 @@ def setup_local_audio():
         else:
             print(f"⚠️ Устройство '{device_name}' не найдено. Доступные: {devices}")
     except Exception as e:
-        print(f"Ошибка настройки аудио: {e}")
+        print(f"⚠️ Ошибка настройки аудио: {e}")
 
 def start_background_music():
     # Проверяем, не в серверной ли среде
-    if os.environ.get('RAILWAY_ENVIRONMENT') or os.environ.get('PORT'):
+    if os.environ.get('RAILWAY_ENVIRONMENT'):
         return
     
     try:
