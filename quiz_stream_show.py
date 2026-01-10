@@ -64,6 +64,20 @@ async def handle_all(request):
         await ws.prepare(request)
         
         clients.add(ws)
+        
+        # Отправляем команду на запуск музыки при подключении (для браузера)
+        music_url = os.environ.get("BACKGROUND_MUSIC_URL")
+        if music_url:
+            try:
+                await ws.send_json({
+                    "type": "music",
+                    "url": music_url,
+                    "volume": 0.3,
+                    "loop": True
+                })
+            except Exception:
+                pass
+
         try:
             async for msg in ws:
                 if msg.type == WSMsgType.TEXT:
@@ -209,7 +223,14 @@ def start_background_music():
 async def play_local_audio(audio_data: bytes):
     """Проигрывает аудио локально и ждет завершения"""
     try:
-        if pygame and pygame.mixer.get_init():
+        mixer_inited = False
+        try:
+            if pygame and pygame.mixer.get_init():
+                mixer_inited = True
+        except Exception:
+            pass
+
+        if mixer_inited:
             try:
                 # Используем Sound для TTS, чтобы не прерывать фоновую музыку
                 sound = pygame.mixer.Sound(io.BytesIO(audio_data))
