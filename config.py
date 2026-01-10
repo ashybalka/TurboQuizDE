@@ -8,5 +8,5 @@ IRC_TOKEN = os.environ.get("IRC_TOKEN", "")  # Токен берем из пер
 IRC_CHANNEL = os.environ.get("IRC_CHANNEL", "#turboquizde")
 YOUTUBE_VIDEO_ID = os.environ.get("YOUTUBE_VIDEO_ID", "")
 YOUTUBE_CHANNEL_ID = os.environ.get("YOUTUBE_CHANNEL_ID", "")
-TTS_DEVICE_NAME = os.environ.get("TTS_DEVICE_NAME", "CABLE Input")
+TTS_DEVICE_NAME = os.environ.get("TTS_DEVICE_NAME", "")
 TIKTOK_USERNAME = os.environ.get("TIKTOK_USERNAME", "")
