@@ -1,5 +1,4 @@
 from collections import defaultdict
-from collections import defaultdict
 import sqlite3
 import os
 import time
@@ -21,6 +20,7 @@ def set_voting_open(is_open: bool):
     _voting_open = is_open
     if is_open:
         question_start_time = time.time()
+        print(f"🗳️ Голосование открыто. Время начала: {question_start_time}")
 
 # --- simple SQLite score DB ---
 DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
@@ -44,6 +44,7 @@ def init_db():
 
 def reset_question():
     votes.clear()
+    print("🔄 Голоса сброшены для нового вопроса")
 
 
 def accept_vote(source: str, username: str, message: str, timestamp: float = None):
@@ -51,26 +52,43 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
     Returns True if the vote was accepted (not duplicate and valid), False otherwise.
     """
     if not _voting_open:
+        print(f"❌ Голосование закрыто. Отклонен голос от {username}: {message}")
         return False
-
-    if timestamp is not None and question_start_time > 0:
-        if timestamp < question_start_time:
-            return False
 
     if not username:
         return False
+    
     uname = f"{source}:{username}" if source else username
+    
+    # Проверка дубликата - СНАЧАЛА проверяем, не голосовал ли уже
     if uname in votes:
+        print(f"❌ Дубликат голоса от {username} (уже проголосовал как {votes[uname]})")
         return False
 
+    # Проверка timestamp ТОЛЬКО если он передан
+    if timestamp is not None:
+        # Нормализуем timestamp (TikTok может передавать в миллисекундах)
+        if timestamp > 10000000000:  # если больше чем разумное значение в секундах
+            timestamp = timestamp / 1000.0
+        
+        # Проверяем, что сообщение пришло ПОСЛЕ начала вопроса
+        if timestamp < question_start_time:
+            print(f"❌ Старое сообщение от {username}: timestamp={timestamp}, question_start={question_start_time}")
+            return False
+
     msg = (message or "").strip().upper()
+    
+    # Убираем префикс !ANSWER если есть
     if msg.startswith('!ANSWER'):
         msg = msg.replace('!ANSWER', '').strip()
 
     if msg in VALID_ANSWERS:
         letter = VALID_ANSWERS[msg]
         votes[uname] = letter
+        print(f"✅ Принят голос от {username}: {letter}")
         return True
+    else:
+        print(f"❌ Неверный формат ответа от {username}: '{message}'")
 
     return False
 
