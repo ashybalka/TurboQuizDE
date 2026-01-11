@@ -158,7 +158,7 @@ def is_stream_live(username: str) -> bool:
         return False
 
 
-def tiktok_listener():
+async def tiktok_listener():
     if not TikTokLiveClient:
         return
     
