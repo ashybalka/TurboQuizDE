@@ -157,8 +157,7 @@ async def tiktok_listener():
     while True:
         try:
             # Создаем клиента (ключ читается из переменной окружения автоматически)
-            # process_initial_data=False предотвращает повторную обработку старых сообщений при рестарте
-            client = TikTokLiveClient(unique_id=tiktok_user, process_initial_data=False)
+            client = TikTokLiveClient(unique_id=tiktok_user)
 
             @client.on(CommentEvent)
             async def on_comment(event: CommentEvent):

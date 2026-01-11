@@ -22,6 +22,10 @@ try:
 except ImportError:
     pygame = None
 
+# Отключаем pygame в серверной среде, чтобы избежать ошибок с отсутствующими библиотеками
+if os.environ.get('RAILWAY_ENVIRONMENT'):
+    pygame = None
+
 # -------------------------------
 # Настройки
 # -------------------------------
