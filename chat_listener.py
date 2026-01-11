@@ -139,14 +139,16 @@ async def tiktok_listener():
     if not tiktok_user:
         return
     
-    # Получаем API ключ EulerStream (если есть)
-    sign_api_key = getattr(config, 'TIKTOK_SIGN_API_KEY', None)
-    if sign_api_key:
-        print(f"🔑 Используется EulerStream API ключ")
-        # Устанавливаем глобально для библиотеки
-        os.environ['SIGN_API_KEY'] = sign_api_key
+    # Получаем Webhook Secret от EulerStream
+    webhook_secret = getattr(config, 'EULERSTREAM_WEBHOOK_SECRET', None)
+    
+    if webhook_secret:
+        print(f"🔑 Используется EulerStream Webhook Secret")
+        # Библиотека TikTokLive автоматически использует бесплатный сервис EulerStream
+        # Webhook secret нужен только для получения уведомлений через webhooks
     else:
-        print(f"⚠️ API ключ не найден - используется бесплатный лимит")
+        print(f"⚠️ Webhook Secret не найден - используется бесплатный лимит EulerStream")
+        print(f"   Для увеличения лимита зарегистрируйтесь на https://www.eulerstream.com")
 
     print(f"🎵 Запуск слушателя TikTok для @{tiktok_user}...")
     
