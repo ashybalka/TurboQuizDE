@@ -248,6 +248,31 @@ async def tiktok_listener():
                 wait_time = min(RECONNECT_MAX, RECONNECT_BASE * (2 ** min(consecutive_offline, 7)))
                 print(f"🔁 Ошибка, ждём {wait_time}s...")
                 await asyncio.sleep(wait_time)
+                
+async def ws_sender():
+    """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
+    while True:
+        try:
+            print(f"🔌 Подключение к основному скрипту {WS_URL}...")
+            async with websockets.connect(WS_URL) as ws:
+                print("✅ Связь с основным скриптом установлена")
+                
+                # Фоновая задача для чтения сообщений (чтобы не переполнялся буфер)
+                async def reader():
+                    try:
+                        async for _ in ws: pass
+                    except: pass
+                
+                reader_task = asyncio.create_task(reader())
+                try:
+                    while True:
+                        data = await msg_queue.get()
+                        await ws.send(json.dumps(data))
+                        msg_queue.task_done()
+                finally:
+                    reader_task.cancel()
+        except Exception:
+            await asyncio.sleep(3)
 
 async def main():
     print("\n--- Выбор сервисов для запуска ---")
