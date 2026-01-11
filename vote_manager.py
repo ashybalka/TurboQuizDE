@@ -80,17 +80,16 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
         timestamp = time.time()
     
     # КРИТИЧНО: Проверка по message_id ПЕРВОЙ (если передан)
-    # Это предотвращает повторную обработку старых сообщений из TikTok/YouTube
     if message_id:
         msg_id_key = f"{source}:{message_id}"
         if msg_id_key in global_message_ids:
-            # Сообщение уже было обработано ранее
+            # Сообщение уже было обработано ранее - молча пропускаем
             return False
         # Сохраняем timestamp когда впервые увидели это сообщение
         global_message_ids[msg_id_key] = timestamp
+        print(f"🆕 [{source}] Новое сообщение ID: {message_id[:20]}... от {username}")
     
     # Создаем уникальный ключ для сообщения
-    # Округляем timestamp до секунды
     msg_key = (source, username, message.strip().upper(), int(timestamp))
     
     # Проверка: уже обрабатывали это сообщение?
@@ -114,6 +113,7 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
 
     # Проверяем, что сообщение пришло ПОСЛЕ начала вопроса (с буфером 5 секунд)
     if timestamp < (question_start_time - 5):
+        print(f"⏱️ [{source}] Старое сообщение от {username} (до начала вопроса)")
         return False
 
     msg = (message or "").strip().upper()
