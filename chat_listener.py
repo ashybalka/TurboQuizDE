@@ -131,6 +131,19 @@ async def youtube_listener():
         
         await asyncio.sleep(10)
 
+def is_stream_live(username: str) -> bool:
+    """Проверка, что TikTok стрим онлайн"""
+    url = f"https://www.tiktok.com/@{username}/live"
+    req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
+    try:
+        with urllib.request.urlopen(req, timeout=10) as response:
+            final_url = response.geturl()
+            # Если в URL есть /live или video_id, считаем онлайн
+            return "/live" in final_url or "video_id" in final_url
+    except:
+        return False
+
+
 async def tiktok_listener():
     if not TikTokLiveClient:
         return
@@ -139,120 +152,102 @@ async def tiktok_listener():
     if not tiktok_user:
         return
     
-    # Получаем Webhook Secret от EulerStream
-    webhook_secret = getattr(config, 'EULERSTREAM_WEBHOOK_SECRET', None)
-    
-    if webhook_secret:
-        print(f"🔑 Используется EulerStream Webhook Secret")
-        # Библиотека TikTokLive автоматически использует бесплатный сервис EulerStream
-        # Webhook secret нужен только для получения уведомлений через webhooks
+    # Устанавливаем API ключ глобально через WebDefaults
+    eulerstream_key = getattr(config, 'EULERSTREAM_API_KEY', None)
+    if eulerstream_key and WebDefaults:
+        WebDefaults.tiktok_sign_api_key = eulerstream_key
+        print(f"🔑 Используется EulerStream API Key")
     else:
-        print(f"⚠️ Webhook Secret не найден - используется бесплатный лимит EulerStream")
+        print(f"⚠️ API Key не найден - используется бесплатный лимит EulerStream")
         print(f"   Для увеличения лимита зарегистрируйтесь на https://www.eulerstream.com")
-
+    
     print(f"🎵 Запуск слушателя TikTok для @{tiktok_user}...")
     
-    consecutive_offline_errors = 0
+    consecutive_offline = 0
     
     while True:
+        # Проверяем статус стрима перед подключением
+        if not is_stream_live(tiktok_user):
+            consecutive_offline += 1
+            wait_time = min(RECONNECT_MAX, CHECK_INTERVAL * consecutive_offline)
+            print(f"💤 Стрим @{tiktok_user} оффлайн, ждем {wait_time}s...")
+            await asyncio.sleep(wait_time)
+            
+            if consecutive_offline > MAX_OFFLINE_RETRIES:
+                print("⚠️ Слишком много оффлайн попыток, пауза 10 минут...")
+                await asyncio.sleep(600)
+                consecutive_offline = 0
+            continue
+        
         try:
-            # Создаем клиента (ключ читается из переменной окружения автоматически)
+            # Создаем клиента
             client = TikTokLiveClient(unique_id=tiktok_user)
-
+            
             @client.on(CommentEvent)
             async def on_comment(event: CommentEvent):
                 ts = getattr(event, 'create_time', None)
+                
+                # TikTok иногда присылает миллисекунды
                 if ts and ts > 100000000000:
-                    ts = ts / 1000.0
+                    ts = ts / 1000
+                
+                # Если времени нет — берём текущее
+                if not ts:
+                    ts = time.time()
                 
                 # Получаем ID сообщения (если доступен)
                 msg_id = getattr(event, 'id', None) or getattr(event, 'msg_id', None)
-
+                
+                username = event.user.nickname or event.user.unique_id
+                message = event.comment
+                
+                time_str = datetime.fromtimestamp(ts).strftime("%H:%M:%S")
+                print(f"[{time_str}] [TikTok] {username}: {message}")
+                
                 await msg_queue.put({
                     "type": "remote_vote",
                     "source": "tiktok",
-                    "username": event.user.nickname or event.user.unique_id,
-                    "message": event.comment,
+                    "username": username,
+                    "message": message,
                     "timestamp": ts,
                     "message_id": msg_id
                 })
             
-            print("🔗 Подключение к TikTok стриму...")
+            print(f"🔗 Подключение к @{tiktok_user} через EulerStream...")
             start_time = time.time()
-            await client.start()
+            consecutive_offline = 0
             
-            # Если мы здесь - значит стрим закончился или соединение разорвано
-            consecutive_offline_errors = 0
+            # Запускаем клиент (синхронный вызов в async функции)
+            client.run()
+            
+            # Если дошли сюда - стрим завершился
             duration = int(time.time() - start_time)
-            if duration < 10:
-                print(f"⚠️ TikTok соединение разорвано слишком быстро ({duration}с). Пауза 5с...")
-                await asyncio.sleep(5)
-            else:
-                print(f"📴 TikTok соединение закрыто (длительность: {duration}с). Реконнект...")
+            print(f"📴 Стрим завершился, длительность: {duration}s")
+            await asyncio.sleep(RECONNECT_BASE)
             
         except WebcastBlocked200Error:
-            print(f"⚠️ TikTok: Доступ заблокирован (DEVICE_BLOCKED). Пауза 5 минут...")
+            print("⛔ DEVICE_BLOCKED — пауза 5 минут")
+            consecutive_offline = 0
             await asyncio.sleep(300)
-            consecutive_offline_errors = 0
-            continue
             
         except Exception as e:
-            error_msg = str(e)
+            msg = str(e)
+            print(f"⚠️ TikTok ошибка: {msg}")
             
-            # Если это rate limit - ждем ДОЛГО
-            if "RATE_LIMIT" in error_msg or "rate_limit" in error_msg:
+            if "RATE_LIMIT" in msg or "rate_limit" in msg:
                 print("⏳ Rate limit достигнут. Пауза 10 минут...")
-                consecutive_offline_errors = 0
+                consecutive_offline = 0
                 await asyncio.sleep(600)
-                continue
-            
-            # Если пользователь оффлайн
-            if "offline" in error_msg.lower():
-                consecutive_offline_errors += 1
-                
-                # Адаптивная пауза: чем больше ошибок подряд, тем дольше ждем
-                if consecutive_offline_errors < 3:
-                    wait_time = 60  # 1 минута
-                elif consecutive_offline_errors < 10:
-                    wait_time = 180  # 3 минуты
-                else:
-                    wait_time = 600  # 10 минут
-                
-                print(f"💤 Оффлайн (попытка {consecutive_offline_errors}). Пауза {wait_time//60} мин...")
+            elif "offline" in msg.lower():
+                consecutive_offline += 1
+                wait_time = min(RECONNECT_MAX, CHECK_INTERVAL * consecutive_offline)
+                print(f"💤 Оффлайн (попытка {consecutive_offline}). Пауза {wait_time}s...")
                 await asyncio.sleep(wait_time)
-                continue
-            
-            # Другие ошибки
-            print(f"⚠️ TikTok ошибка: {error_msg}")
-            consecutive_offline_errors = 0
-        
-        # Обычная пауза между переподключениями (если стрим нормально завершился)
-        await asyncio.sleep(5)
-
-async def ws_sender():
-    """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
-    while True:
-        try:
-            print(f"🔌 Подключение к основному скрипту {WS_URL}...")
-            async with websockets.connect(WS_URL) as ws:
-                print("✅ Связь с основным скриптом установлена")
-                
-                # Фоновая задача для чтения сообщений (чтобы не переполнялся буфер)
-                async def reader():
-                    try:
-                        async for _ in ws: pass
-                    except: pass
-                
-                reader_task = asyncio.create_task(reader())
-                try:
-                    while True:
-                        data = await msg_queue.get()
-                        await ws.send(json.dumps(data))
-                        msg_queue.task_done()
-                finally:
-                    reader_task.cancel()
-        except Exception:
-            await asyncio.sleep(3)
+            else:
+                consecutive_offline += 1
+                wait_time = min(RECONNECT_MAX, RECONNECT_BASE * (2 ** min(consecutive_offline, 7)))
+                print(f"🔁 Ошибка, ждём {wait_time}s...")
+                await asyncio.sleep(wait_time)
 
 async def main():
     print("\n--- Выбор сервисов для запуска ---")
