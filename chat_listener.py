@@ -7,6 +7,12 @@ import time
 import websockets
 import config
 
+from datetime import datetime
+from TikTokLive import TikTokLiveClient
+from TikTokLive.client.web.web_settings import WebDefaults
+from TikTokLive.events import CommentEvent
+from TikTokLive.client.errors import WebcastBlocked200Error
+
 # Пытаемся импортировать pytchat
 try:
     import pytchat
@@ -248,7 +254,7 @@ async def tiktok_listener():
                 wait_time = min(RECONNECT_MAX, RECONNECT_BASE * (2 ** min(consecutive_offline, 7)))
                 print(f"🔁 Ошибка, ждём {wait_time}s...")
                 await asyncio.sleep(wait_time)
-                
+
 async def ws_sender():
     """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
     while True:
