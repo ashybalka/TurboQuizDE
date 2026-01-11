@@ -2,6 +2,7 @@ from collections import defaultdict
 from collections import defaultdict
 import sqlite3
 import os
+import time
 
 VALID_ANSWERS = {
     "A": "A", "B": "B", "C": "C", "D": "D",
@@ -13,10 +14,13 @@ votes = {}
 
 # Флаг: открыто ли голосование
 _voting_open = False
+question_start_time = 0
 
 def set_voting_open(is_open: bool):
-    global _voting_open
+    global _voting_open, question_start_time
     _voting_open = is_open
+    if is_open:
+        question_start_time = time.time()
 
 # --- simple SQLite score DB ---
 DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
@@ -42,12 +46,16 @@ def reset_question():
     votes.clear()
 
 
-def accept_vote(source: str, username: str, message: str):
+def accept_vote(source: str, username: str, message: str, timestamp: float = None):
     """Normalize and accept a vote from any chat source.
     Returns True if the vote was accepted (not duplicate and valid), False otherwise.
     """
     if not _voting_open:
         return False
+
+    if timestamp is not None and question_start_time > 0:
+        if timestamp < question_start_time:
+            return False
 
     if not username:
         return False

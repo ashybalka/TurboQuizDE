@@ -143,11 +143,16 @@ async def tiktok_listener():
 
             @client.on(CommentEvent)
             async def on_comment(event: CommentEvent):
+                ts = getattr(event, 'create_time', None)
+                if ts and ts > 100000000000:
+                    ts = ts / 1000.0
+
                 await msg_queue.put({
                     "type": "remote_vote",
                     "source": "tiktok",
                     "username": event.user.nickname or event.user.unique_id,
-                    "message": event.comment
+                    "message": event.comment,
+                    "timestamp": ts
                 })
             
             await client.start()
