@@ -41,6 +41,14 @@ PORT = os.environ.get("PORT", 8765)
 WS_URL = f"ws://127.0.0.1:{PORT}"
 msg_queue = asyncio.Queue()
 
+# ======================
+# КОНСТАНТЫ ДЛЯ TIKTOK
+# ======================
+RECONNECT_BASE = 5       # базовая пауза между реконнектами (сек)
+RECONNECT_MAX = 600      # макс пауза (10 мин)
+MAX_OFFLINE_RETRIES = 10
+CHECK_INTERVAL = 60      # интервал проверки офлайн стрима
+
 async def twitch_listener():
     print("🎮 Запуск слушателя Twitch...")
     while True:
@@ -150,7 +158,7 @@ def is_stream_live(username: str) -> bool:
         return False
 
 
-async def tiktok_listener():
+def tiktok_listener():
     if not TikTokLiveClient:
         return
     
@@ -177,11 +185,11 @@ async def tiktok_listener():
             consecutive_offline += 1
             wait_time = min(RECONNECT_MAX, CHECK_INTERVAL * consecutive_offline)
             print(f"💤 Стрим @{tiktok_user} оффлайн, ждем {wait_time}s...")
-            await asyncio.sleep(wait_time)
+            time.sleep(wait_time)
             
             if consecutive_offline > MAX_OFFLINE_RETRIES:
                 print("⚠️ Слишком много оффлайн попыток, пауза 10 минут...")
-                await asyncio.sleep(600)
+                time.sleep(600)
                 consecutive_offline = 0
             continue
         
@@ -229,12 +237,12 @@ async def tiktok_listener():
             # Если дошли сюда - стрим завершился
             duration = int(time.time() - start_time)
             print(f"📴 Стрим завершился, длительность: {duration}s")
-            await asyncio.sleep(RECONNECT_BASE)
+            time.sleep(RECONNECT_BASE)
             
         except WebcastBlocked200Error:
             print("⛔ DEVICE_BLOCKED — пауза 5 минут")
             consecutive_offline = 0
-            await asyncio.sleep(300)
+            time.sleep(300)
             
         except Exception as e:
             msg = str(e)
@@ -243,17 +251,17 @@ async def tiktok_listener():
             if "RATE_LIMIT" in msg or "rate_limit" in msg:
                 print("⏳ Rate limit достигнут. Пауза 10 минут...")
                 consecutive_offline = 0
-                await asyncio.sleep(600)
+                time.sleep(600)
             elif "offline" in msg.lower():
                 consecutive_offline += 1
                 wait_time = min(RECONNECT_MAX, CHECK_INTERVAL * consecutive_offline)
                 print(f"💤 Оффлайн (попытка {consecutive_offline}). Пауза {wait_time}s...")
-                await asyncio.sleep(wait_time)
+                time.sleep(wait_time)
             else:
                 consecutive_offline += 1
                 wait_time = min(RECONNECT_MAX, RECONNECT_BASE * (2 ** min(consecutive_offline, 7)))
                 print(f"🔁 Ошибка, ждём {wait_time}s...")
-                await asyncio.sleep(wait_time)
+                time.sleep(wait_time)
 
 async def ws_sender():
     """Пересылает сообщения из очереди в основной скрипт через WebSocket"""
