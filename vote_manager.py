@@ -2,188 +2,194 @@ from collections import defaultdict
 import sqlite3
 import os
 import time
+from typing import Dict, Tuple, Iterable
+
+# ---------------- CONFIG ----------------
 
 VALID_ANSWERS = {
     "A": "A", "B": "B", "C": "C", "D": "D",
     "1": "A", "2": "B", "3": "C", "4": "D"
 }
 
-# votes: mapping of 'source:username' -> letter (A/B/C/D)
-votes = {}
+DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
 
-# Трекинг обработанных сообщений для предотвращения дубликатов
-# Формат: (source, username, message, rounded_timestamp) -> True
-processed_messages = {}
+MESSAGE_ID_TTL = 3600        # 1 час
+DUPLICATE_TIME_WINDOW = 1   # 1 секунда
 
-# ГЛОБАЛЬНЫЙ кеш ID сообщений - НЕ очищается между вопросами!
-# Это предотвращает повторную обработку старых сообщений TikTok
-global_message_ids = {}
+# ---------------- STATE ----------------
 
-# Флаг: открыто ли голосование
+votes: Dict[str, str] = {}
+processed_messages: Dict[Tuple, float] = {}
+global_message_ids: Dict[str, float] = {}
+
 _voting_open = False
-question_start_time = 0
+question_start_time = 0.0
+
+
+# ---------------- VOTING ----------------
 
 def set_voting_open(is_open: bool):
     global _voting_open, question_start_time
     _voting_open = is_open
     if is_open:
         question_start_time = time.time()
-        print(f"🗳️ Голосование открыто. Время начала: {question_start_time}")
-
-# --- simple SQLite score DB ---
-DB_PATH = os.path.join(os.path.dirname(__file__), "scores.db")
-
-def _get_conn():
-    conn = sqlite3.connect(DB_PATH)
-    return conn
-
-def init_db():
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute("""
-    CREATE TABLE IF NOT EXISTS scores (
-        username TEXT PRIMARY KEY,
-        score INTEGER NOT NULL DEFAULT 0
-    )
-    """)
-    conn.commit()
-    conn.close()
+        print(f"🗳️ Голосование открыто ({question_start_time:.0f})")
 
 
 def reset_question():
-    global processed_messages
     votes.clear()
-    # Очищаем только временный кеш сообщений
-    # НО НЕ очищаем global_message_ids - он нужен для всей сессии!
-    old_count = len(processed_messages)
     processed_messages.clear()
-    
-    # Опционально: очистка ОЧЕНЬ старых ID (старше 1 часа)
-    cutoff = time.time() - 3600
-    old_ids = len(global_message_ids)
-    for key in list(global_message_ids.keys()):
-        if global_message_ids[key] < cutoff:
-            del global_message_ids[key]
-    
-    print(f"🔄 Голоса сброшены. Очищено {old_count} сообщений. ID кеш: {old_ids} → {len(global_message_ids)}")
+    _cleanup_global_message_ids()
+    print(f"🔄 Вопрос сброшен | ID cache: {len(global_message_ids)}")
 
 
-def accept_vote(source: str, username: str, message: str, timestamp: float = None, message_id: str = None):
-    """Normalize and accept a vote from any chat source.
-    Returns True if the vote was accepted (not duplicate and valid), False otherwise.
-    """
-    # Нормализуем timestamp
-    if timestamp is not None:
-        if timestamp > 10000000000:
-            timestamp = timestamp / 1000.0
-    else:
-        timestamp = time.time()
-    
-    # КРИТИЧНО: Проверка по message_id ПЕРВОЙ (если передан)
-    if message_id:
-        msg_id_key = f"{source}:{message_id}"
-        if msg_id_key in global_message_ids:
-            # Сообщение уже было обработано ранее - молча пропускаем
-            return False
-        # Сохраняем timestamp когда впервые увидели это сообщение
-        global_message_ids[msg_id_key] = timestamp
-        print(f"🆕 [{source}] Новое сообщение ID: {message_id[:20]}... от {username}")
-    
-    # Создаем уникальный ключ для сообщения
-    msg_key = (source, username, message.strip().upper(), int(timestamp))
-    
-    # Проверка: уже обрабатывали это сообщение?
+def accept_vote(
+    source: str,
+    username: str,
+    message: str,
+    timestamp: float | None = None,
+    message_id: str | None = None
+) -> bool:
+
+    if not _voting_open or not username:
+        return False
+
+    timestamp = _normalize_timestamp(timestamp)
+
+    if timestamp < question_start_time - 5:
+        return False
+
+    if message_id and _is_duplicate_message_id(source, message_id, timestamp):
+        return False
+
+    msg_key = _build_message_key(source, username, message, timestamp)
     if msg_key in processed_messages:
         return False
-    
-    # Отмечаем сообщение как обработанное
-    processed_messages[msg_key] = True
-    
-    if not _voting_open:
-        return False
 
-    if not username:
-        return False
-    
-    uname = f"{source}:{username}" if source else username
-    
-    # Проверка дубликата - уже проголосовал?
+    processed_messages[msg_key] = timestamp
+
+    uname = f"{source}:{username}"
     if uname in votes:
         return False
 
-    # Проверяем, что сообщение пришло ПОСЛЕ начала вопроса (с буфером 5 секунд)
-    if timestamp < (question_start_time - 5):
-        print(f"⏱️ [{source}] Старое сообщение от {username} (до начала вопроса)")
+    letter = _extract_answer(message)
+    if not letter:
         return False
 
-    msg = (message or "").strip().upper()
-    
-    # Убираем префикс !ANSWER если есть
-    if msg.startswith('!ANSWER'):
-        msg = msg.replace('!ANSWER', '').strip()
+    votes[uname] = letter
+    print(f"✅ [{source}] {username} → {letter}")
+    return True
 
-    if msg in VALID_ANSWERS:
-        letter = VALID_ANSWERS[msg]
-        votes[uname] = letter
-        print(f"✅ [{source}] {username} → {letter}")
+
+# ---------------- HELPERS ----------------
+
+def _normalize_timestamp(ts: float | None) -> float:
+    if ts is None:
+        return time.time()
+    return ts / 1000 if ts > 1e10 else ts
+
+
+def _build_message_key(source, username, message, timestamp):
+    return (
+        source,
+        username,
+        message.strip().upper(),
+        int(timestamp / DUPLICATE_TIME_WINDOW)
+    )
+
+
+def _is_duplicate_message_id(source, message_id, timestamp) -> bool:
+    key = f"{source}:{message_id}"
+    if key in global_message_ids:
         return True
-
+    global_message_ids[key] = timestamp
     return False
 
+
+def _cleanup_global_message_ids():
+    cutoff = time.time() - MESSAGE_ID_TTL
+    for k in list(global_message_ids):
+        if global_message_ids[k] < cutoff:
+            del global_message_ids[k]
+
+
+def _extract_answer(message: str) -> str | None:
+    msg = message.strip().upper()
+    if msg.startswith("!ANSWER"):
+        msg = msg[7:].strip()
+    return VALID_ANSWERS.get(msg)
+
+
+# ---------------- STATS ----------------
 
 def get_counts_and_percentages():
     counts = defaultdict(int)
     for v in votes.values():
         counts[v] += 1
+
     total = sum(counts.values())
-    percentages = {}
-    for k in ['A', 'B', 'C', 'D']:
-        cnt = counts.get(k, 0)
-        pct = round((cnt / total) * 100, 1) if total > 0 else 0.0
-        percentages[k] = pct
+    percentages = {
+        k: round((counts.get(k, 0) / total) * 100, 1) if total else 0.0
+        for k in ("A", "B", "C", "D")
+    }
     return dict(counts), percentages, total
 
 
 def get_voters_for_letter(letter: str):
-    # return list of (source, username) tuples for voters who chose 'letter'
-    res = []
-    for uname, v in votes.items():
-        if v == letter:
-            if ':' in uname:
-                src, user = uname.split(':', 1)
-            else:
-                src, user = '', uname
-            res.append((src, user))
-    return res
+    return [
+        tuple(uname.split(":", 1))
+        for uname, v in votes.items()
+        if v == letter
+    ]
 
 
-def award_points(user_tuples, points=1):
-    """user_tuples: iterable of (source, username)"""
-    if not user_tuples:
+# ---------------- DATABASE ----------------
+
+def _get_conn():
+    return sqlite3.connect(DB_PATH)
+
+
+def init_db():
+    with _get_conn() as conn:
+        conn.execute("""
+            CREATE TABLE IF NOT EXISTS scores (
+                username TEXT PRIMARY KEY,
+                score INTEGER NOT NULL DEFAULT 0
+            )
+        """)
+
+
+def award_points(users: Iterable[Tuple[str, str]], points=1):
+    users = {u for _, u in users}
+    if not users:
         return
+
     init_db()
-    conn = _get_conn()
-    cur = conn.cursor()
-    for _, username in user_tuples:
-        cur.execute("SELECT score FROM scores WHERE username = ?", (username,))
-        row = cur.fetchone()
-        if row:
-            cur.execute("UPDATE scores SET score = score + ? WHERE username = ?", (points, username))
-        else:
-            cur.execute("INSERT INTO scores(username, score) VALUES(?, ?)", (username, points))
-    conn.commit()
-    conn.close()
+    with _get_conn() as conn:
+        cur = conn.cursor()
+        cur.executemany("""
+            INSERT INTO scores(username, score)
+            VALUES(?, ?)
+            ON CONFLICT(username)
+            DO UPDATE SET score = score + excluded.score
+        """, [(u, points) for u in users])
 
 
 def get_top_scores(limit=10):
     init_db()
-    conn = _get_conn()
-    cur = conn.cursor()
-    cur.execute("SELECT username, score FROM scores ORDER BY score DESC LIMIT ?", (limit,))
-    rows = cur.fetchall()
-    conn.close()
-    return [{'username': r[0], 'score': r[1]} for r in rows]
+    with _get_conn() as conn:
+        cur = conn.cursor()
+        cur.execute("""
+            SELECT username, score
+            FROM scores
+            ORDER BY score DESC
+            LIMIT ?
+        """, (limit,))
+        return [
+            {"username": u, "score": s}
+            for u, s in cur.fetchall()
+        ]
 
 
-# initialize DB file on import
+# init DB on import
 init_db()
