@@ -15,8 +15,9 @@ votes = {}
 # Формат: (source, username, message, rounded_timestamp) -> True
 processed_messages = {}
 
-# ID последнего обработанного сообщения для каждого источника
-last_message_ids = {}
+# ГЛОБАЛЬНЫЙ кеш ID сообщений - НЕ очищается между вопросами!
+# Это предотвращает повторную обработку старых сообщений TikTok
+global_message_ids = {}
 
 # Флаг: открыто ли голосование
 _voting_open = False
@@ -52,11 +53,19 @@ def init_db():
 def reset_question():
     global processed_messages
     votes.clear()
-    # Очищаем ВЕСЬ кеш сообщений при новом вопросе
-    # чтобы старые сообщения не засчитывались
+    # Очищаем только временный кеш сообщений
+    # НО НЕ очищаем global_message_ids - он нужен для всей сессии!
     old_count = len(processed_messages)
     processed_messages.clear()
-    print(f"🔄 Голоса сброшены. Очищено {old_count} старых сообщений из кеша")
+    
+    # Опционально: очистка ОЧЕНЬ старых ID (старше 1 часа)
+    cutoff = time.time() - 3600
+    old_ids = len(global_message_ids)
+    for key in list(global_message_ids.keys()):
+        if global_message_ids[key] < cutoff:
+            del global_message_ids[key]
+    
+    print(f"🔄 Голоса сброшены. Очищено {old_count} сообщений. ID кеш: {old_ids} → {len(global_message_ids)}")
 
 
 def accept_vote(source: str, username: str, message: str, timestamp: float = None, message_id: str = None):
@@ -70,12 +79,15 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
     else:
         timestamp = time.time()
     
-    # Проверка по message_id (если передан) - для TikTok/YouTube
+    # КРИТИЧНО: Проверка по message_id ПЕРВОЙ (если передан)
+    # Это предотвращает повторную обработку старых сообщений из TikTok/YouTube
     if message_id:
         msg_id_key = f"{source}:{message_id}"
-        if msg_id_key in last_message_ids:
+        if msg_id_key in global_message_ids:
+            # Сообщение уже было обработано ранее
             return False
-        last_message_ids[msg_id_key] = True
+        # Сохраняем timestamp когда впервые увидели это сообщение
+        global_message_ids[msg_id_key] = timestamp
     
     # Создаем уникальный ключ для сообщения
     # Округляем timestamp до секунды
