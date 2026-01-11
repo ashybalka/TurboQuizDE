@@ -231,8 +231,9 @@ def tiktok_listener():
             start_time = time.time()
             consecutive_offline = 0
             
-            # Запускаем клиент (синхронный вызов в async функции)
-            client.run()
+            # Запускаем клиент в отдельном потоке, чтобы избежать конфликта event loop
+            loop = asyncio.get_event_loop()
+            await loop.run_in_executor(None, client.run)
             
             # Если дошли сюда - стрим завершился
             duration = int(time.time() - start_time)
