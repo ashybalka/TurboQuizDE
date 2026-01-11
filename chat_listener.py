@@ -157,7 +157,8 @@ async def tiktok_listener():
     while True:
         try:
             # Создаем клиента (ключ читается из переменной окружения автоматически)
-            client = TikTokLiveClient(unique_id=tiktok_user)
+            # process_initial_data=False предотвращает повторную обработку старых сообщений при рестарте
+            client = TikTokLiveClient(unique_id=tiktok_user, process_initial_data=False)
 
             @client.on(CommentEvent)
             async def on_comment(event: CommentEvent):
@@ -183,7 +184,12 @@ async def tiktok_listener():
             
             # Если мы здесь - значит стрим закончился или соединение разорвано
             consecutive_offline_errors = 0
-            print(f"📴 TikTok соединение закрыто (длительность: {int(time.time() - start_time)}с). Реконнект...")
+            duration = int(time.time() - start_time)
+            if duration < 10:
+                print(f"⚠️ TikTok соединение разорвано слишком быстро ({duration}с). Пауза 5с...")
+                await asyncio.sleep(5)
+            else:
+                print(f"📴 TikTok соединение закрыто (длительность: {duration}с). Реконнект...")
             
         except WebcastBlocked200Error:
             print(f"⚠️ TikTok: Доступ заблокирован (DEVICE_BLOCKED). Пауза 5 минут...")
