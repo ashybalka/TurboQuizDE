@@ -1,1 +1,16 @@
+# Python
+__pycache__/
+*.py[cod]
+venv/
+.venv/
+
+# Environment variables
+.env
+
+# IDE settings
+.vscode/
+.idea/
+
+# Project generated files
+quiz.txt
 answer.txt
