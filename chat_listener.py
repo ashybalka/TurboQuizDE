@@ -3,6 +3,7 @@ import json
 import socket
 import urllib.request
 import os
+import time
 import websockets
 import config
 
@@ -77,7 +78,8 @@ async def twitch_listener():
                         "type": "remote_vote",
                         "source": "twitch",
                         "username": username,
-                        "message": message
+                        "message": message,
+                        "timestamp": time.time()
                     })
                 except Exception:
                     continue
@@ -118,7 +120,9 @@ async def youtube_listener():
                         "type": "remote_vote",
                         "source": "youtube",
                         "username": c.author.name,
-                        "message": c.message
+                        "message": c.message,
+                        "timestamp": time.time(),
+                        "message_id": c.id  # Добавляем ID сообщения
                     })
                 await asyncio.sleep(1)
             print("🔴 YouTube чат отключился")
@@ -146,13 +150,17 @@ async def tiktok_listener():
                 ts = getattr(event, 'create_time', None)
                 if ts and ts > 100000000000:
                     ts = ts / 1000.0
+                
+                # Получаем ID сообщения (если доступен)
+                msg_id = getattr(event, 'id', None) or getattr(event, 'msg_id', None)
 
                 await msg_queue.put({
                     "type": "remote_vote",
                     "source": "tiktok",
                     "username": event.user.nickname or event.user.unique_id,
                     "message": event.comment,
-                    "timestamp": ts
+                    "timestamp": ts,
+                    "message_id": msg_id  # Добавляем ID сообщения
                 })
             
             await client.start()

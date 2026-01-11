@@ -87,9 +87,10 @@ async def handle_all(request):
                             source = data.get("source", "unknown")
                             username = data.get("username")
                             msg_text = data.get("message")
+                            message_id = data.get("message_id")  # ← Добавить эту строку
                             accepted = vote_manager.accept_vote(source, username, msg_text)
                             timestamp = data.get("timestamp")
-                            accepted = vote_manager.accept_vote(source, username, msg_text, timestamp)
+                            accepted = vote_manager.accept_vote(source, username, msg_text, timestamp, message_id)
                             if accepted:
                                 print(f"✅ [{source}] {username} → {msg_text}")
                                 await broadcast_votes_once()

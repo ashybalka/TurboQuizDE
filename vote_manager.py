@@ -11,6 +11,13 @@ VALID_ANSWERS = {
 # votes: mapping of 'source:username' -> letter (A/B/C/D)
 votes = {}
 
+# Трекинг обработанных сообщений для предотвращения дубликатов
+# Формат: (source, username, message, rounded_timestamp) -> True
+processed_messages = {}
+
+# ID последнего обработанного сообщения для каждого источника
+last_message_ids = {}
+
 # Флаг: открыто ли голосование
 _voting_open = False
 question_start_time = 0
@@ -43,16 +50,45 @@ def init_db():
 
 
 def reset_question():
+    global processed_messages
     votes.clear()
-    print("🔄 Голоса сброшены для нового вопроса")
+    # Очищаем ВЕСЬ кеш сообщений при новом вопросе
+    # чтобы старые сообщения не засчитывались
+    old_count = len(processed_messages)
+    processed_messages.clear()
+    print(f"🔄 Голоса сброшены. Очищено {old_count} старых сообщений из кеша")
 
 
-def accept_vote(source: str, username: str, message: str, timestamp: float = None):
+def accept_vote(source: str, username: str, message: str, timestamp: float = None, message_id: str = None):
     """Normalize and accept a vote from any chat source.
     Returns True if the vote was accepted (not duplicate and valid), False otherwise.
     """
+    # Нормализуем timestamp
+    if timestamp is not None:
+        if timestamp > 10000000000:
+            timestamp = timestamp / 1000.0
+    else:
+        timestamp = time.time()
+    
+    # Проверка по message_id (если передан) - для TikTok/YouTube
+    if message_id:
+        msg_id_key = f"{source}:{message_id}"
+        if msg_id_key in last_message_ids:
+            return False
+        last_message_ids[msg_id_key] = True
+    
+    # Создаем уникальный ключ для сообщения
+    # Округляем timestamp до секунды
+    msg_key = (source, username, message.strip().upper(), int(timestamp))
+    
+    # Проверка: уже обрабатывали это сообщение?
+    if msg_key in processed_messages:
+        return False
+    
+    # Отмечаем сообщение как обработанное
+    processed_messages[msg_key] = True
+    
     if not _voting_open:
-        print(f"❌ Голосование закрыто. Отклонен голос от {username}: {message}")
         return False
 
     if not username:
@@ -60,21 +96,13 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
     
     uname = f"{source}:{username}" if source else username
     
-    # Проверка дубликата - СНАЧАЛА проверяем, не голосовал ли уже
+    # Проверка дубликата - уже проголосовал?
     if uname in votes:
-        print(f"❌ Дубликат голоса от {username} (уже проголосовал как {votes[uname]})")
         return False
 
-    # Проверка timestamp ТОЛЬКО если он передан
-    if timestamp is not None:
-        # Нормализуем timestamp (TikTok может передавать в миллисекундах)
-        if timestamp > 10000000000:  # если больше чем разумное значение в секундах
-            timestamp = timestamp / 1000.0
-        
-        # Проверяем, что сообщение пришло ПОСЛЕ начала вопроса
-        if timestamp < question_start_time:
-            print(f"❌ Старое сообщение от {username}: timestamp={timestamp}, question_start={question_start_time}")
-            return False
+    # Проверяем, что сообщение пришло ПОСЛЕ начала вопроса (с буфером 5 секунд)
+    if timestamp < (question_start_time - 5):
+        return False
 
     msg = (message or "").strip().upper()
     
@@ -85,10 +113,8 @@ def accept_vote(source: str, username: str, message: str, timestamp: float = Non
     if msg in VALID_ANSWERS:
         letter = VALID_ANSWERS[msg]
         votes[uname] = letter
-        print(f"✅ Принят голос от {username}: {letter}")
+        print(f"✅ [{source}] {username} → {letter}")
         return True
-    else:
-        print(f"❌ Неверный формат ответа от {username}: '{message}'")
 
     return False
 
