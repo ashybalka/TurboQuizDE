@@ -1,248 +1,528 @@
 <!DOCTYPE html>
 <html lang="de">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Turbo Quiz Overlay</title>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Quiz Stream Overlay Mobile</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
 
-<style>
-*{margin:0;padding:0;box-sizing:border-box}
-body{font-family:Arial,sans-serif;background:transparent;overflow:hidden}
+        body {
+            font-family: 'Arial', sans-serif;
+            background: transparent;
+            min-height: 100vh;
+            overflow: hidden;
+        }
 
-.container{
-    width:100%;
-    height:100vh;
-    background:linear-gradient(135deg,rgba(30,60,114,.95),rgba(42,82,152,.95),rgba(126,34,206,.95));
-    display:flex;
-    flex-direction:column;
-    align-items:center;
-    padding:10px;
-    position:relative
-}
+        .container {
+            width: 100%;
+            height: 100vh;
+            position: relative;
+            background: linear-gradient(135deg, rgba(30,60,114,0.95) 0%, rgba(42,82,152,0.95) 50%, rgba(126,34,206,0.95) 100%);
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 10px;
+        }
 
-.animated-bg{position:absolute;inset:0;pointer-events:none}
-.circle{position:absolute;border-radius:50%;background:rgba(255,255,255,.1);animation:float 20s infinite}
-.circle:nth-child(1){width:150px;height:150px;top:5%;left:-20px}
-.circle:nth-child(2){width:100px;height:100px;top:40%;right:-20px;animation-delay:5s}
-.circle:nth-child(3){width:80px;height:80px;bottom:10%;left:10%;animation-delay:10s}
+        .animated-bg {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            overflow: hidden;
+            top: 0; left: 0;
+            z-index: 0;
+            pointer-events: none;
+        }
 
-@keyframes float{
-    0%,100%{transform:translate(0,0)}
-    50%{transform:translate(20px,-20px)}
-}
+        .circle {
+            position: absolute;
+            border-radius: 50%;
+            background: rgba(255, 255, 255, 0.1);
+            animation: float 20s infinite;
+        }
 
-.header{text-align:center;margin:10px 0;z-index:2}
-.title{font-size:32px;color:#fff;font-weight:800;text-shadow:0 0 15px #00d4ff}
-.subtitle{font-size:16px;color:#ffd700}
+        .circle:nth-child(1) { width: 150px; height: 150px; top: 5%; left: -20px; }
+        .circle:nth-child(2) { width: 100px; height: 100px; top: 40%; right: -20px; animation-delay: 5s; }
+        .circle:nth-child(3) { width: 80px; height: 80px; bottom: 10%; left: 10%; animation-delay: 10s; }
 
-.time-top-right{position:absolute;top:10px;right:10px;z-index:3}
-.info-box{background:rgba(255,255,255,.2);padding:6px 12px;border-radius:10px}
-.info-value{color:#fff;font-size:20px;font-weight:700}
+        @keyframes float {
+            0%, 100% { transform: translate(0, 0) scale(1); }
+            33% { transform: translate(20px, -20px) scale(1.1); }
+            66% { transform: translate(-10px, 10px) scale(0.9); }
+        }
 
-.main-content{width:100%;max-width:600px;flex:1;display:flex;flex-direction:column;justify-content:center;z-index:2}
+        .header {
+            position: relative;
+            z-index: 10;
+            text-align: center;
+            margin-top: 10px;
+            margin-bottom: 15px;
+            flex-shrink: 0;
+        }
 
-.question-box{
-    background:rgba(255,255,255,.15);
-    border-radius:20px;
-    padding:15px;
-    margin-bottom:15px;
-    text-align:center
-}
-.question-number{color:#ffd700;font-size:16px;margin-bottom:8px}
-.question-text{color:#fff;font-size:22px;font-weight:700}
+        .title {
+            font-size: 32px;
+            font-weight: bold;
+            color: #fff;
+            text-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+            letter-spacing: 2px;
+            animation: glow 2s ease-in-out infinite alternate;
+        }
 
-.answers-grid{display:grid;gap:10px}
+        @keyframes glow {
+            from { text-shadow: 0 0 10px #fff, 0 0 20px #fff, 0 0 30px #ff00de; }
+            to { text-shadow: 0 0 15px #fff, 0 0 20px #00d4ff, 0 0 25px #00d4ff; }
+        }
 
-.answer-box{
-    background:rgba(255,255,255,.2);
-    border-radius:15px;
-    padding:12px;
-    display:flex;
-    align-items:center;
-    gap:12px
-}
-.answer-box.correct{background:linear-gradient(90deg,#2ecc71,#27ae60)}
-.answer-box.incorrect{opacity:.4}
+        .subtitle {
+            font-size: 16px;
+            color: #ffd700;
+            margin-top: 5px;
+            text-shadow: 0 2px 5px rgba(0, 0, 0, 0.5);
+        }
 
-.answer-letter{
-    width:36px;height:36px;border-radius:50%;
-    background:#667eea;color:#fff;
-    display:flex;align-items:center;justify-content:center;
-    font-weight:700
-}
-.answer-text{color:#fff;flex:1;font-size:16px;line-height:1.2}
-.answer-percent{min-width:45px;color:#fff;font-weight:800;text-align:right}
+        .time-top-right {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            z-index: 11;
+        }
 
-.leaderboard{
-    width:100%;max-width:600px;
-    background:rgba(0,0,0,.3);
-    border-radius:12px;
-    padding:10px;
-    margin-top:10px;
-    z-index:2
-}
-.leaderboard h3{text-align:center;color:#ffd700;font-size:14px;margin-bottom:5px}
-.leaderboard-list{list-style:none;max-height:25vh;overflow-y:auto}
-.leaderboard-item{
-    display:flex;align-items:center;
-    padding:4px 8px;font-size:13px;
-    margin-bottom:4px;border-radius:6px;
-    background:rgba(255,255,255,.05)
-}
-.leaderboard-item.top1{background:#ffd36b;color:#111}
-.leaderboard-item.top2{background:#e6e6e6;color:#111}
-.leaderboard-item.top3{background:#d9a06a;color:#111}
+        .info-box {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(5px);
+            border: 1px solid rgba(255, 255, 255, 0.3);
+            border-radius: 10px;
+            padding: 5px 10px;
+        }
 
-.rank{width:20px;font-weight:700}
-.name{flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.score{font-weight:700}
+        .info-value {
+            color: #fff;
+            font-size: 20px;
+            font-weight: bold;
+        }
 
-@media(max-width:480px){
-    .animated-bg{display:none}
-}
-</style>
+        .main-content {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            z-index: 10;
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+            overflow-y: auto;
+            overflow-x: hidden;
+            padding-bottom: 10px;
+        }
+
+        .question-box {
+            background: rgba(255, 255, 255, 0.15);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.3);
+            border-radius: 20px;
+            padding: 15px;
+            margin-bottom: 15px;
+            box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
+            width: 100%;
+        }
+
+        .question-number {
+            color: #ffd700;
+            font-size: 16px;
+            font-weight: bold;
+            margin-bottom: 10px;
+            text-align: center;
+        }
+
+        .question-text {
+            color: #fff;
+            font-size: 22px;
+            font-weight: bold;
+            text-align: center;
+            line-height: 1.3;
+        }
+
+        .answers-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 10px;
+            width: 100%;
+        }
+
+        .answer-box {
+            background: rgba(255, 255, 255, 0.2);
+            backdrop-filter: blur(10px);
+            border: 2px solid rgba(255, 255, 255, 0.4);
+            border-radius: 15px;
+            padding: 12px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: transform 0.2s;
+            min-height: 60px;
+        }
+
+        .answer-box.correct {
+            background: linear-gradient(90deg,#2ecc71,#27ae60);
+            border: 3px solid rgba(255,255,255,0.95);
+            transform: none;
+            z-index: 20;
+        }
+
+        .answer-box.correct .answer-text {
+            color: #053109 !important;
+        }
+
+        .answer-box.correct .answer-letter {
+            background: #fff !important;
+            color: #0a6b00 !important;
+        }
+
+        .answer-box.incorrect {
+            opacity: 0.5;
+            filter: grayscale(50%);
+        }
+
+        .answer-letter {
+            background: linear-gradient(135deg, #667eea, #764ba2);
+            color: #fff;
+            width: 36px;
+            height: 36px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 18px;
+            font-weight: bold;
+            flex-shrink: 0;
+        }
+
+        .answer-text {
+            color: #fff;
+            font-size: 16px;
+            font-weight: 600;
+            flex: 1;
+        }
+
+        .answer-percent {
+            color: #fff;
+            font-weight: 800;
+            font-size: 14px;
+            min-width: 35px;
+            text-align: right;
+        }
+
+        .leaderboard {
+            position: relative;
+            width: 100%;
+            max-width: 600px;
+            background: rgba(0,0,0,0.3);
+            border: 1px solid rgba(255,255,255,0.1);
+            border-radius: 12px;
+            padding: 10px;
+            margin-top: 10px;
+            z-index: 12;
+            flex-shrink: 0;
+            max-height: 25vh;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .leaderboard h3 {
+            margin: 0 0 5px 0;
+            font-size: 14px;
+            color: #ffd700;
+            text-align: center;
+            text-transform: uppercase;
+        }
+
+        .leaderboard-list {
+            list-style: none;
+            margin: 0;
+            padding: 0;
+            overflow-y: auto;
+        }
+
+        .leaderboard-item {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 4px 8px;
+            border-radius: 6px;
+            font-size: 13px;
+            margin-bottom: 4px;
+            background: rgba(255,255,255,0.05);
+        }
+
+        .leaderboard-item.top1 { background: linear-gradient(90deg,#ffd36b,#ffb347); color: #111; }
+        .leaderboard-item.top2 { background: linear-gradient(90deg,#e6e6e6,#cfcfcf); color: #111; }
+        .leaderboard-item.top3 { background: linear-gradient(90deg,#b87a5a,#d9a06a); color: #111; }
+
+        .leaderboard-item .rank { width: 20px; font-weight: bold; text-align: center; }
+        .leaderboard-item .icon { width: 20px; height: 20px; margin: 0 8px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+        .leaderboard-item .icon svg { width: 100%; height: 100%; }
+        .leaderboard-item .name { flex: 1; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; padding: 0 5px; }
+        .leaderboard-item .score { font-weight: bold; }
+    </style>
 </head>
-
 <body>
-<div class="container">
+    <div class="container">
+        <div class="animated-bg">
+            <div class="circle"></div>
+            <div class="circle"></div>
+            <div class="circle"></div>
+        </div>
 
-<div class="animated-bg">
-    <div class="circle"></div><div class="circle"></div><div class="circle"></div>
-</div>
+        <div class="time-top-right">
+            <div class="info-box">
+                <div class="info-value">0:45</div>
+            </div>
+        </div>
 
-<div class="time-top-right"><div class="info-box"><div class="info-value">0:00</div></div></div>
+        <div class="header">
+            <div class="title">Turbo Quiz DE</div>
+            <div class="subtitle">Teste dein Wissen!</div>
+        </div>
 
-<div class="header">
-    <div class="title">Turbo Quiz DE</div>
-    <div class="subtitle">Teste dein Wissen!</div>
-</div>
+        <div class="main-content">
+            <div class="question-box">
+                <div class="question-number"></div>
+                <div class="question-text">Warte auf Frage...</div>
+            </div>
 
-<div class="main-content">
-    <div class="question-box">
-        <div class="question-number"></div>
-        <div class="question-text">Warte auf Frage…</div>
+            <div class="answers-grid"></div>
+        </div>
+
+        <div class="leaderboard">
+            <h3>Bestenliste</h3>
+            <ul class="leaderboard-list"></ul>
+        </div>
     </div>
-    <div class="answers-grid"></div>
-</div>
+    <script>
+    (function(){
+        const el = document.querySelector('.time-top-right .info-value');
+        if(!el) return;
 
-<div class="leaderboard">
-    <h3>Bestenliste</h3>
-    <ul class="leaderboard-list"></ul>
-</div>
+        function formatSec(s){
+            const n = parseInt(s, 10);
+            if(Number.isNaN(n)) return s;
+            const m = Math.floor(n/60);
+            const sec = n % 60;
+            return `${m}:${sec.toString().padStart(2,'0')}`;
+        }
 
-</div>
+        let ws;
+        const audioQueue = [];
+        let isPlaying = false;
+        let currentAudio = null;
+        let backgroundMusic = null;
 
-<script>
-(() => {
+        async function playNextAudio(){
+            if(isPlaying || audioQueue.length === 0) return;
+            isPlaying = true;
+            const {audioUrl, isQuestion} = audioQueue.shift();
+            return new Promise((resolve) => {
+                const audio = new Audio(audioUrl);
+                currentAudio = audio;
+                audio.addEventListener('ended', () => {
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    if(isQuestion) setTimeout(() => playNextAudio(), 500);
+                    else playNextAudio();
+                    resolve();
+                }, { once: true });
+                audio.addEventListener('error', () => {
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    playNextAudio();
+                    resolve();
+                });
+                audio.play().catch(() => {
+                    URL.revokeObjectURL(audioUrl);
+                    currentAudio = null;
+                    isPlaying = false;
+                    playNextAudio();
+                    resolve();
+                });
+            });
+        }
 
-const dom = {
-    timer: document.querySelector('.info-value'),
-    qNum: document.querySelector('.question-number'),
-    qText: document.querySelector('.question-text'),
-    answers: document.querySelector('.answers-grid'),
-    leaderboard: document.querySelector('.leaderboard-list')
-};
+        function addToAudioQueue(audioUrl, isQuestion = false){
+            audioQueue.push({audioUrl, isQuestion});
+            if(!isPlaying) playNextAudio();
+        }
 
-const audio = {
-    queue: [],
-    playing: false,
-    current: null,
-    music: null
-};
+        function connect(){
+            const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+            const wsUrl = protocol + '//' + window.location.host;
+            ws = new WebSocket(wsUrl);
+            ws.onopen = () => {
+                console.log('WS connected');
+                audioQueue.length = 0;
+                if(currentAudio) currentAudio.pause();
+                isPlaying = false;
+            };
+            ws.onmessage = (e) => {
+                let data;
+                try { data = JSON.parse(e.data); } catch(err) { return; }
 
-function resetAudio(){
-    audio.queue.length = 0;
-    if(audio.current){ audio.current.pause(); audio.current=null; }
-    audio.playing=false;
-}
+                if(data.type === 'music'){
+                    if(!backgroundMusic){
+                        backgroundMusic = new Audio(data.url);
+                        backgroundMusic.volume = data.volume || 0.3;
+                        backgroundMusic.loop = (data.loop !== undefined) ? data.loop : true;
+                        
+                        backgroundMusic.play().catch(err => {
+                            console.log("Автовоспроизведение заблокировано. Ждем взаимодействия пользователя.");
+                            
+                            const startMusic = () => {
+                                if(backgroundMusic){
+                                    backgroundMusic.play();
+                                    document.removeEventListener('click', startMusic);
+                                    document.removeEventListener('touchstart', startMusic);
+                                }
+                            };
+                            
+                            document.addEventListener('click', startMusic);
+                            document.addEventListener('touchstart', startMusic);
+                        });
+                    }
+                    return;
+                }
 
-function playNext(){
-    if(audio.playing || !audio.queue.length) return;
-    audio.playing=true;
-    const {url} = audio.queue.shift();
-    const a = new Audio(url);
-    audio.current=a;
-    a.onended=()=>{audio.playing=false;playNext()};
-    a.onerror=()=>{audio.playing=false;playNext()};
-    a.play().catch(()=>{audio.playing=false;playNext()});
-}
+                if(data.type === 'timer'){
+                    el.textContent = formatSec(data.seconds);
+                    const sec = parseInt(data.seconds, 10);
+                    if(data.phase === 'answer_wait') el.style.color = 'rgb(255,0,0)';
+                    else if(!Number.isNaN(sec) && sec <= 10){
+                        const g = Math.round(255 * (sec / 10));
+                        el.style.color = `rgb(255,${g},${g})`;
+                    } else el.style.color = '';
+                    return;
+                }
 
-function addAudio(url){
-    if(audio.queue.length>5) audio.queue.length=0;
-    audio.queue.push({url});
-    playNext();
-}
+                if(data.type === 'question'){
+                    audioQueue.length = 0;
+                    if(currentAudio) { currentAudio.pause(); currentAudio = null; }
+                    isPlaying = false;
+                    
+                    const qBox = document.querySelector('.question-box');
+                    
+                    const lines = data.text.split('\n').map(s => s.trim()).filter(Boolean);
+                    let questionLine = '';
+                    let topic = '';
+                    const options = [];
+                    for(const line of lines){
+                        if(line.startsWith('Thema:')) {
+                            topic = line.replace('Thema:', '').trim();
+                            continue;
+                        }
+                        if(/^([A-Z])\)\s*/.test(line)) options.push(line);
+                        else if(!questionLine) questionLine = line;
+                    }
+                    qBox.querySelector('.question-number').textContent = topic || `Frage ${data.current} von ${data.total}`;
+                    qBox.querySelector('.question-text').textContent = questionLine || '';
 
-function format(sec){
-    const m=Math.floor(sec/60);
-    return `${m}:${(sec%60).toString().padStart(2,'0')}`;
-}
+                    const answersGrid = document.querySelector('.answers-grid');
+                    answersGrid.innerHTML = '';
+                    for(const opt of options){
+                        const m = opt.match(/^([A-Z])\)\s*(.*)$/);
+                        const letter = m ? m[1] : '';
+                        const text = m ? m[2] : opt;
+                        const box = document.createElement('div');
+                        box.className = 'answer-box';
+                        box.innerHTML = `<div class="answer-letter">${letter}</div><div class="answer-text">${text}</div><div class="answer-percent">0%</div>`;
+                        answersGrid.appendChild(box);
+                    }
+                    return;
+                }
 
-const handlers = {
+                if(data.type === 'votes'){
+                    document.querySelectorAll('.answer-box').forEach(box => {
+                        const letter = box.querySelector('.answer-letter').textContent.trim().toUpperCase();
+                        const pct = (data.percentages && data.percentages[letter]) !== undefined ? data.percentages[letter] : 0;
+                        box.querySelector('.answer-percent').textContent = `${pct}%`;
+                    });
+                    return;
+                }
 
-timer:d=>{
-    dom.timer.textContent=format(d.seconds||0);
-},
+                if(data.type === 'answer'){
+                    const correctLetter = (data.correct_letter || '').toString().trim().toUpperCase();
+                    const correctText = (data.correct_text || '').toString().trim().toLowerCase();
+                    const boxes = document.querySelectorAll('.answer-box');
+                    let matched = false;
+                    boxes.forEach(box => box.classList.remove('correct','incorrect'));
+                    
+                    boxes.forEach(box => {
+                        const letter = box.querySelector('.answer-letter').textContent.trim().toLowerCase();
+                        const text = box.querySelector('.answer-text').textContent.trim().toLowerCase();
+                        if((correctLetter && letter === correctLetter.toLowerCase()) || (correctText && (text === correctText || text.includes(correctText)))){
+                            box.classList.add('correct');
+                            matched = true;
+                        } else {
+                            box.classList.add('incorrect');
+                        }
+                    });
+                    if(!matched && correctText){
+                        const cleaned = correctText.replace(/[.,!?]/g,'').split(' ').filter(Boolean).slice(0,4).join(' ');
+                        boxes.forEach(box => {
+                            if(box.querySelector('.answer-text').textContent.toLowerCase().includes(cleaned)){
+                                box.classList.remove('incorrect');
+                                box.classList.add('correct');
+                            }
+                        });
+                    }
+                    return;
+                }
 
-question:d=>{
-    resetAudio();
-    dom.qNum.textContent=d.topic||`Frage ${d.current}/${d.total}`;
-    dom.qText.textContent=d.text||'';
-    dom.answers.innerHTML='';
-    (d.options||[]).forEach(o=>{
-        dom.answers.innerHTML+=`
-        <div class="answer-box">
-            <div class="answer-letter">${o.letter}</div>
-            <div class="answer-text">${o.text}</div>
-            <div class="answer-percent">0%</div>
-        </div>`;
-    });
-},
+                if(data.type === 'scores'){
+                    const list = document.querySelector('.leaderboard-list');
+                    if(!list || !data.leaderboard) return;
+                    
+                    const getIcon = (s) => {
+                        s = (s||'').toLowerCase();
+                        if(s==='twitch') return '<svg viewBox="0 0 24 24" style="fill:#9146FF"><path d="M11.571 4.714h1.715v5.143H11.57zm4.715 0H18v5.143h-1.714zM6 0L1.714 4.286v15.428h5.143V24l4.286-4.286h2.995l6.429-6.429V0H6z"/></svg>';
+                        if(s==='youtube') return '<svg viewBox="0 0 24 24" style="fill:#FF0000"><path d="M19.615 3.184c-3.604-.246-11.631-.245-15.23 0-3.897.266-4.356 2.62-4.385 8.816.029 6.185.484 8.549 4.385 8.816 3.6.245 11.626.246 15.23 0 3.897-.266 4.356-2.62 4.385-8.816-.029-6.185-.484-8.549-4.385-8.816zm-10.615 12.816v-8l8 3.993-8 4.007z"/></svg>';
+                        if(s==='tiktok') return '<svg viewBox="0 0 24 24" style="fill:#000000"><path d="M19.59 6.69a4.83 4.83 0 0 1-3.77-4.25V2h-3.45v13.67a2.89 2.89 0 0 1-5.2 1.74 2.89 2.89 0 0 1 2.31-4.64 2.93 2.93 0 0 1 .88.13V9.4a6.84 6.84 0 0 0-1-.05A6.33 6.33 0 0 0 5 20.1a6.34 6.34 0 0 0 10.86-4.43v-7a8.16 8.16 0 0 0 4.77 1.52v-3.4a4.85 4.85 0 0 1-1-.1z"/></svg>';
+                        return '<svg viewBox="0 0 24 24" style="fill:#ccc"><circle cx="12" cy="8" r="4"/><path d="M12 14c-6.1 0-8 4-8 4v2h16v-2s-1.9-4-8-4z"/></svg>';
+                    };
 
-votes:d=>{
-    document.querySelectorAll('.answer-box').forEach(b=>{
-        const l=b.querySelector('.answer-letter').textContent;
-        b.querySelector('.answer-percent').textContent=(d.percentages?.[l]||0)+'%';
-    });
-},
+                    list.innerHTML = '';
+                    data.leaderboard.forEach((entry, index) => {
+                        const item = document.createElement('li');
+                        item.className = 'leaderboard-item';
+                        if(index===0) item.classList.add('top1');
+                        else if(index===1) item.classList.add('top2');
+                        else if(index===2) item.classList.add('top3');
+                        item.innerHTML = `<span class="rank">${index+1}.</span><span class="icon">${getIcon(entry.source)}</span><span class="name">${entry.username}</span><span class="score">${entry.score}</span>`;
+                        list.appendChild(item);
+                    });
+                    return;
+                }
 
-answer:d=>{
-    document.querySelectorAll('.answer-box').forEach(b=>{
-        const l=b.querySelector('.answer-letter').textContent;
-        b.classList.toggle('correct',l===d.correct_letter);
-        b.classList.toggle('incorrect',l!==d.correct_letter);
-    });
-},
-
-scores:d=>{
-    dom.leaderboard.innerHTML='';
-    d.leaderboard.forEach((e,i)=>{
-        dom.leaderboard.innerHTML+=`
-        <li class="leaderboard-item ${i<3?'top'+(i+1):''}">
-            <span class="rank">${i+1}.</span>
-            <span class="name">${e.username}</span>
-            <span class="score">${e.score}</span>
-        </li>`;
-    });
-},
-
-audio:d=>{
-    if(d.audio) addAudio(d.audio);
-}
-
-};
-
-function connect(){
-    const ws=new WebSocket((location.protocol==='https:'?'wss':'ws')+'://'+location.host);
-    ws.onmessage=e=>{
-        let d; try{d=JSON.parse(e.data)}catch{return}
-        handlers[d.type]?.(d);
-    };
-    ws.onclose=()=>setTimeout(connect,1000);
-}
-
-connect();
-})();
-</script>
+                if(data.type === 'audio' && data.audio){
+                    try {
+                        const audioData = atob(data.audio);
+                        const audioArray = new Uint8Array(audioData.length);
+                        for(let i=0; i<audioData.length; i++) audioArray[i] = audioData.charCodeAt(i);
+                        const blob = new Blob([audioArray], { type: 'audio/mpeg' });
+                        addToAudioQueue(URL.createObjectURL(blob), data.isQuestion === true);
+                    } catch(e){}
+                    return;
+                }
+            };
+            ws.onclose = () => setTimeout(connect, 1000);
+        }
+        connect();
+    })();
+    </script>
 </body>
 </html>
