@@ -143,6 +143,8 @@ async def tiktok_listener():
     sign_api_key = getattr(config, 'TIKTOK_SIGN_API_KEY', None)
     if sign_api_key:
         print(f"🔑 Используется EulerStream API ключ")
+        # Устанавливаем глобально для библиотеки
+        os.environ['SIGN_API_KEY'] = sign_api_key
     else:
         print(f"⚠️ API ключ не найден - используется бесплатный лимит")
 
@@ -152,14 +154,8 @@ async def tiktok_listener():
     
     while True:
         try:
-            # Создаем клиента с API ключом (если есть)
-            if sign_api_key:
-                client = TikTokLiveClient(
-                    unique_id=tiktok_user,
-                    sign_api_key=sign_api_key
-                )
-            else:
-                client = TikTokLiveClient(unique_id=tiktok_user)
+            # Создаем клиента (ключ читается из переменной окружения автоматически)
+            client = TikTokLiveClient(unique_id=tiktok_user)
 
             @client.on(CommentEvent)
             async def on_comment(event: CommentEvent):
